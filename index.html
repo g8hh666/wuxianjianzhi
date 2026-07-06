@@ -1,0 +1,3206 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>无限剪纸</title>
+<style>
+/* ============================================================
+   《无限剪贴册》v0.4 —— 69科技全落地版（蓝图v4）
+   数值集中在 JS 配置区（TECHS/常量），供后续数值平衡统一重调
+   ============================================================ */
+:root{
+  --paper:#F5ECDB; --paper-2:#EFE4CC; --paper-3:#E8DBC0;
+  --kraft:#D9C6A3; --kraft-deep:#C7B48E;
+  --ink:#4A3E2C; --ink-2:#7A6A50; --mute:#9A8A66;
+  --line:#E2D3B6; --dash:#C7B48E;
+  --accent:#E36D4F; --accent-deep:#C24E33;
+  --good:#6E9E58; --warn:#D9A03F; --crit:#C94F3D;
+  --t0:#7BB661;--t0d:#5E9147; --t1:#5D8FD6;--t1d:#41689F;
+  --t2:#9D7BC9;--t2d:#77599E; --t3:#E8C25A;--t3d:#C09A34;
+  --t4:#E58B4E;--t4d:#BC6630;
+  --desk:#C9A876; --desk-2:#B8946A;
+  --sans:"Segoe UI","PingFang SC","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+  --mono:Consolas,ui-monospace,monospace;
+  --fs:clamp(11px,1.9vmin,15px);
+}
+/* 做成"游戏"而非"网页"：全局禁掉长按选中/callout搜索菜单/文字高亮 */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+html,body{margin:0;height:100%;overscroll-behavior:none}   /* overscroll:禁下拉刷新/橡皮筋回弹 */
+body{background:#B9A57F;color:var(--ink);font-family:var(--sans);overflow:hidden;user-select:none;font-size:var(--fs)}
+#rotateTip{display:none;position:fixed;inset:0;z-index:99;background:var(--paper);
+  flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--ink-2);font-size:15px}
+#rotateTip .ph{font-size:42px;animation:rot 1.6s ease infinite}
+@keyframes rot{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(90deg)}}
+@media (orientation:portrait){ #rotateTip{display:flex} }
+#stage{position:fixed;inset:0;background:var(--paper);display:flex;overflow:hidden}
+#stage::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(150,120,70,.03) 3px 4px)}
+
+/* ---------- 左栏 ---------- */
+#sidebar{width:clamp(158px,21vw,232px);flex:none;z-index:2;
+  padding:clamp(8px,1.6vmin,14px) clamp(8px,1.4vmin,12px);
+  background:var(--paper-2);border-right:1.5px dashed var(--dash);
+  display:flex;flex-direction:column;gap:clamp(5px,1.1vmin,9px);overflow-y:auto}
+#sidebar::-webkit-scrollbar{width:3px}
+#sidebar::-webkit-scrollbar-thumb{background:var(--kraft-deep);border-radius:4px}
+.card.page{transform:rotate(.5deg)}
+.card.page .v.big{font-size:clamp(20px,4vmin,30px);color:var(--accent);line-height:1.15}
+.card.page .v.big #pageNum{font-family:var(--mono)}
+.card{background:#FBF6EA;border:1px solid var(--line);border-radius:9px;
+  padding:clamp(5px,1vmin,9px) clamp(7px,1.2vmin,10px);box-shadow:1px 2px 0 rgba(120,100,60,.18)}
+.card .k{font-size:.72em;letter-spacing:.12em;color:var(--mute)}
+.card .v{font-size:clamp(15px,2.8vmin,21px);font-weight:800;line-height:1.2}
+.card.glue{transform:rotate(.4deg)} .card.glue .v{color:var(--good)}
+.card.safe{transform:rotate(-.5deg);border:1.5px solid var(--kraft-deep)}
+.card.safe .v.big{font-size:clamp(26px,5vmin,38px);color:var(--good);line-height:1.1}
+.card.safe .v.big .unit{font-style:normal;font-size:.42em;color:var(--mute);font-weight:600;margin-left:4px}
+.card .duo{display:flex;justify-content:space-between;gap:8px}
+.card .duo .v{font-size:clamp(13px,2.3vmin,17px)}
+#multV{color:var(--accent)}
+.tape{margin-top:4px;height:clamp(6px,1.2vmin,9px);border-radius:100px;background:var(--paper-3);
+  border:1px solid var(--kraft-deep);overflow:hidden;position:relative}
+#tapeFill{height:100%;width:0%;background:var(--good);border-radius:100px;transition:width .2s}
+#tapeMark{position:absolute;top:-2px;bottom:-2px;width:1.5px;background:rgba(120,90,40,.5)}
+.card .sub{font-size:.72em;color:var(--mute);margin-top:2px;line-height:1.4}
+.haul-row{display:flex;justify-content:space-between;align-items:center;font-size:.85em;color:var(--ink-2)}
+.haul-row b{font-size:1.15em;color:var(--ink)}
+.haul-row .risk{color:var(--accent)}
+#comboRow{display:none;border-top:1px dashed var(--line);margin-top:4px;padding-top:4px}
+#comboRow b{color:var(--warn)}
+.pbtn{border:none;border-radius:8px;padding:clamp(7px,1.4vmin,11px) 8px;font-family:var(--sans);
+  font-size:clamp(11.5px,1.9vmin,14px);font-weight:800;cursor:pointer;letter-spacing:.02em;transition:transform .08s;position:relative}
+.pbtn:active{transform:scale(.97)}
+.pbtn:disabled{opacity:.4;cursor:default}
+.pbtn small{display:block;font-size:.68em;font-weight:500;opacity:.8;margin-top:1px}
+#collectBtn{background:var(--accent);color:#FFF6EC;transform:rotate(-.5deg);
+  box-shadow:2px 3px 0 rgba(120,80,45,.35);outline:1.5px dashed rgba(255,255,255,.55);outline-offset:-4px}
+#collectBtn.urgent{animation:shake2 .5s infinite}
+@keyframes shake2{0%,100%{transform:rotate(-.5deg)}25%{transform:rotate(1deg) translateX(1px)}75%{transform:rotate(-1.5deg) translateX(-1px)}}
+#craftBtn{background:#FBF6EA;color:var(--ink-2);border:1px solid var(--line);transform:rotate(.4deg);
+  box-shadow:1px 2px 0 rgba(120,100,60,.18)}
+#knifeBtn{background:#8C6DB5;color:#FFF;transform:rotate(-.3deg);
+  box-shadow:2px 3px 0 rgba(90,60,120,.35);display:none}
+#knobBtn{background:#B06A3C;color:#FFF6EC;transform:rotate(.3deg);
+  box-shadow:2px 3px 0 rgba(110,60,25,.35);display:none}
+#dblBtn{background:#8C6DB5;color:#FFF;transform:rotate(.3deg);
+  box-shadow:2px 3px 0 rgba(90,60,120,.35);outline:1.5px dashed rgba(255,255,255,.5);outline-offset:-4px}
+#dblBtn.on{background:#C24E33;box-shadow:2px 3px 0 rgba(120,50,30,.4)}
+#diaryBtn{background:none;border:none;color:var(--mute);font-size:.78em;cursor:pointer;
+  text-decoration:underline dashed;padding:2px}
+.lgdot{display:inline-block;width:9px;height:9px;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  vertical-align:-1px;margin-right:4px}
+/* TapTap 登录贴纸 + 排行榜（2026-07-05）——纯剪纸风，真接口在 JS 的「TapTap 接入层」 */
+.login-sticker{width:100%;margin-top:2px;cursor:pointer;font-family:var(--sans);
+  background:#FBF6EA;border:1.5px dashed var(--kraft-deep);border-radius:9px;padding:7px 10px;
+  display:flex;align-items:center;gap:8px;transform:rotate(-.4deg);box-shadow:1px 2px 0 rgba(120,100,60,.2)}
+.login-sticker:active{transform:scale(.98) rotate(-.4deg)}
+.login-sticker .lg-av{width:24px;height:24px;flex:none;border-radius:50%;background:var(--kraft);
+  border:1.5px solid var(--kraft-deep);display:flex;align-items:center;justify-content:center;font-size:14px}
+.login-sticker .lg-nm{font-size:11.5px;font-weight:800;color:var(--ink-2);text-align:left;line-height:1.15}
+.login-sticker.done{background:#FFFDF6;border-style:solid;border-color:var(--good)}
+.login-sticker.done .lg-nm{color:var(--ink)}
+.meta-row{display:flex;gap:8px;flex-wrap:wrap}
+.author-btn{width:100%;margin-top:8px;cursor:pointer;font-family:var(--sans);font-size:.8em;font-weight:800;
+  color:#FFF6EC;background:linear-gradient(180deg,#F0836A,#E36D4F);border:none;border-radius:9px;padding:8px 10px;
+  box-shadow:2px 3px 0 rgba(120,80,45,.28)}
+.author-btn:hover{filter:brightness(1.06)}
+.author-txt{font-size:.92em;line-height:1.75;color:var(--ink);margin:8px 4px 16px;text-align:center}
+.author-txt b{color:var(--accent)}
+.meta-row button{flex:1;background:none;border:none;color:var(--mute);font-size:.78em;cursor:pointer;
+  text-decoration:underline dashed;padding:2px;font-family:var(--sans)}
+.board{margin:10px auto 4px;max-width:320px;text-align:left}
+.bd-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px dashed var(--line);font-size:.9em}
+.bd-row.me{background:#FBF0DA;border:1.5px dashed var(--accent);border-radius:8px;font-weight:800}
+.bd-rk{width:26px;text-align:center;font-family:var(--mono);font-weight:800;color:var(--ink-2)}
+.bd-nm{flex:1;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd-sc{font-family:var(--mono);font-weight:700;color:var(--accent)}
+#tip{font-size:.82em;color:var(--ink-2);line-height:1.5;padding:0 2px;min-height:2.6em}
+#tip b{color:var(--accent)}
+
+/* ---------- 中央纸页 ---------- */
+#pageArea{flex:1;position:relative;z-index:1;display:flex;align-items:center;justify-content:center;min-width:0}
+#track{position:absolute;inset:clamp(12px,3vmin,26px) clamp(14px,3.4vmin,30px);
+  border:1.5px dashed rgba(150,120,70,.28);border-radius:18px;pointer-events:none}
+#track::after{content:"↻ 这圈跑道留给以后的裁纸刀 / 弹幕玩法";position:absolute;right:10px;bottom:5px;
+  font-size:9px;color:rgba(150,120,70,.55);letter-spacing:.06em}
+#grid{display:grid;gap:clamp(4px,.9vmin,8px);position:relative;z-index:2}
+#grid.zoomin{animation:gridZoom .45s ease}
+@keyframes gridZoom{0%{transform:scale(.88);opacity:.6}70%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
+/* 自动装订开关：浮在纸页左上角（买了装订机后出现，可随时开关自动翻页） */
+#binderToggle{position:absolute;left:clamp(16px,3.6vmin,36px);top:clamp(16px,3.6vmin,36px);z-index:6;display:none;
+  background:#B06A3C;color:#FFF6EC;border:none;border-radius:100px;padding:6px 15px;
+  font-family:var(--sans);font-weight:800;font-size:clamp(10px,1.7vmin,13px);cursor:pointer;
+  box-shadow:2px 3px 0 rgba(110,60,25,.35);transform:rotate(-.6deg)}
+#binderToggle.off{background:var(--paper-3);color:var(--mute)}
+#binderToggle:active{transform:scale(.96) rotate(-.6deg)}
+/* 收纳动画（方案A，2026-07-05 用户选定）：晶沿弧线飞向左栏"本页已捏"——一次性CSS位移，限流6颗 */
+.flyx{position:fixed;left:0;top:0;z-index:60;pointer-events:none;transition:transform .55s linear}
+.flyy{position:absolute;width:15px;height:15px;margin:-7px 0 0 -7px;
+  clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  filter:drop-shadow(1px 2px 1px rgba(100,80,45,.35));
+  transition:transform .55s cubic-bezier(.25,-.35,.62,1)}
+#haulBox{display:inline-block}
+#haulBox.bump{animation:haulBump .35s ease}
+@keyframes haulBump{0%{transform:scale(1)}40%{transform:scale(1.25) rotate(2deg)}100%{transform:scale(1)}}
+/* 金页/彩页：整页镶边 */
+#grid.goldpg{outline:3px solid #C9A227;outline-offset:8px;border-radius:8px;
+  box-shadow:0 0 24px rgba(201,162,39,.35)}
+#grid.rainbowpg{outline:3px solid transparent;outline-offset:8px;border-radius:8px;
+  box-shadow:0 0 26px rgba(155,110,255,.4),0 0 10px rgba(93,143,214,.4)}
+.cell{position:relative;border-radius:6px;cursor:pointer;transition:transform .1s}
+.cell:active{transform:scale(.93)}
+.cell.covered{background:var(--kraft);box-shadow:1.5px 2.5px 0 rgba(120,100,60,.3)}
+.cell.covered::after{content:"";position:absolute;left:10%;right:10%;top:46%;height:1px;
+  background:rgba(110,90,50,.22);transform:rotate(-3deg)}
+.cell.covered:nth-child(odd){transform:rotate(.8deg)}
+.cell.covered:nth-child(3n){transform:rotate(-.9deg)}
+.cell.covered:nth-child(odd):active,.cell.covered:nth-child(3n):active{transform:scale(.93)}
+.cell.covered.peek::before{content:"✦";position:absolute;right:6%;top:2%;z-index:2;
+  color:#C9A227;font-size:13px;font-weight:800;text-shadow:0 1px 2px rgba(120,90,20,.35);
+  animation:peekPulse 1.6s ease-in-out infinite}
+@keyframes peekPulse{0%,100%{opacity:.55}50%{opacity:1}}
+/* 特殊格子印记（8种，奇纸坊逐级解锁） */
+.cell.covered.spmark::before{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;
+  font-weight:900;font-size:clamp(10px,1.9vmin,15px);text-shadow:0 1px 1px rgba(255,253,246,.6)}
+.cell.covered.sp-chaincell::before{content:"◎";color:#7A5C2E}
+.cell.covered.sp-goldcell{border:2px solid #C9A227;box-shadow:1.5px 2.5px 0 rgba(120,100,60,.3),inset 0 0 6px rgba(201,162,39,.4)}
+.cell.covered.sp-goldcell::before{content:"✦";color:#C9A227}
+.cell.covered.sp-capsule::before{content:"⬭";color:#41689F}
+.cell.covered.sp-tictac::before{content:"#";color:#77599E}
+.cell.covered.sp-portal::before{content:"⇄";color:#3D8DA8}
+.cell.covered.sp-hoard::before{content:"❖";color:#BC6630}
+.cell.covered.sp-kaleido::before{content:"✳";color:#B0568F}
+.cell.covered.sp-timecell::before{content:"⟲";color:#5E9147}
+/* 巨幅插画：2×2块的四格虚线描边 */
+.cell.covered.bigpic{outline:2.5px dashed #B0568F;outline-offset:-3px}
+.cell.covered.bigpic.bp-tl::before{content:"🖼";position:absolute;left:4%;top:2%;font-size:11px;z-index:2}
+.cell.open{background:var(--paper-2);border:1.5px dashed var(--kraft-deep);cursor:default;
+  box-shadow:inset 1px 2px 3px rgba(120,95,50,.18);animation:openFlip .3s ease}
+.cell.open.hasgem{cursor:pointer}
+@keyframes openFlip{0%{transform:rotateY(80deg) scale(.8)}100%{transform:rotateY(0) scale(1)}}
+.gem{position:absolute;inset:16%;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  transform:rotate(-3deg);filter:drop-shadow(2px 3px 0 rgba(100,80,45,.3));animation:gemDrop .35s ease}
+@keyframes gemDrop{0%{transform:rotate(-3deg) scale(0)}65%{transform:rotate(-3deg) scale(1.25)}100%{transform:rotate(-3deg) scale(1)}}
+.gem.wait{animation:gemDrop .35s ease, gemWob 1.3s ease-in-out .35s infinite}
+.nofx .gem.wait{animation:gemDrop .35s ease!important}          /* 关特效：晶体不再摆动（只保留落位） */
+@keyframes gemWob{0%,100%{transform:rotate(-7deg) scale(1)}50%{transform:rotate(3deg) scale(1.09)}}
+.gem.t0{background:linear-gradient(90deg,var(--t0) 50%,var(--t0d) 50%)}
+.gem.t1{background:linear-gradient(90deg,var(--t1) 50%,var(--t1d) 50%)}
+.gem.t2{background:linear-gradient(90deg,var(--t2) 50%,var(--t2d) 50%)}
+.gem.t3{background:linear-gradient(90deg,var(--t3) 50%,var(--t3d) 50%)}
+.gem.t4{background:linear-gradient(90deg,var(--t4) 50%,var(--t4d) 50%)}
+.gem.t5{background:linear-gradient(90deg,#E88A8A 0 20%,#EBC868 0 40%,#92C97E 0 60%,#7BA6DE 0 80%,#B195D6 0)}
+.gem.picked{animation:pickUp .3s ease forwards}
+@keyframes pickUp{0%{transform:rotate(-3deg) scale(1)}100%{transform:rotate(10deg) scale(0);opacity:0}}
+.cell.scatter{animation:scatterFly .7s ease-in forwards!important;pointer-events:none}
+@keyframes scatterFly{0%{opacity:1}100%{opacity:0;transform:translate(var(--dx,0px),var(--dy,90px)) rotate(var(--rot,50deg)) scale(.8)}}
+.cell.regrow{animation:regrowIn .35s ease}
+@keyframes regrowIn{0%{transform:scale(.4) rotate(8deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+#fx{position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden}
+/* 纸屑/彩带=预制CSS动画（2026-07-05 用户定：一律预制、不实时渲染）——起终点交给CSS变量，浏览器自己播 */
+.fxbit{position:absolute;pointer-events:none;animation:fxbitFly .8s ease-in forwards}
+@keyframes fxbitFly{0%{opacity:1;transform:translate(0,0) rotate(0)}
+  100%{opacity:0;transform:translate(var(--bx,10px),var(--by,60px)) rotate(var(--br,120deg))}}
+.fxrib{position:absolute;top:-14px;pointer-events:none;border-radius:2px;
+  animation:fxribFall var(--dur,1.6s) ease-in forwards}
+@keyframes fxribFall{0%{opacity:1;transform:translateY(0) rotate(var(--r0,0deg))}
+  85%{opacity:1}100%{opacity:0;transform:translateY(var(--fall,70vh)) rotate(var(--br,240deg))}}
+.float{position:absolute;font-family:var(--mono);font-weight:700;font-size:clamp(11px,1.9vmin,14px);z-index:6;
+  transform:translate(-50%,-50%);pointer-events:none;animation:rise .85s ease-out forwards}
+@keyframes rise{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-95%) scale(1.1)}100%{opacity:0;transform:translate(-50%,-175%)}}
+/* 顺风信（广告位④）：漂浮的牛皮纸信封，剪纸风、单元素CSS动画（无逐帧JS） */
+#floatEnv{position:absolute;width:56px;height:42px;z-index:8;cursor:pointer;display:none;
+  filter:drop-shadow(2px 3px 2px rgba(90,65,30,.35));animation:envBob 2.6s ease-in-out infinite}
+#floatEnv.show{display:block}
+#floatEnv .body{position:absolute;inset:0;background:#EFE3C8;border:1.5px solid var(--kraft-deep);border-radius:6px}
+#floatEnv .flap{position:absolute;left:2px;right:2px;top:1px;height:0;border-style:solid;
+  border-width:20px 26px 0 26px;border-color:var(--kraft) transparent transparent transparent}
+#floatEnv .seal{position:absolute;left:50%;top:13px;width:13px;height:13px;border-radius:50%;
+  background:var(--accent);transform:translateX(-50%);box-shadow:inset 0 -2px 0 rgba(0,0,0,.15)}
+#floatEnv .tag{position:absolute;left:50%;bottom:-15px;transform:translateX(-50%);white-space:nowrap;
+  font-size:10px;font-weight:800;color:var(--ink-2);background:var(--paper);border-radius:100px;
+  padding:1px 8px;border:1px dashed var(--kraft-deep)}
+@keyframes envBob{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-9px) rotate(3deg)}}
+
+/* ---------- 科技树画布（分叉树） ---------- */
+#craftPage{position:absolute;inset:0;z-index:30;display:none;flex-direction:column;
+  background:linear-gradient(160deg,var(--desk),var(--desk-2));padding:clamp(8px,1.8vmin,16px) clamp(12px,2.4vmin,22px)}
+#craftPage.show{display:flex;animation:pageIn .25s ease}
+@keyframes pageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+#craftPage::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(92deg,transparent 0 26px,rgba(90,60,20,.05) 26px 28px),
+             repeating-linear-gradient(0deg,transparent 0 3px,rgba(120,80,30,.03) 3px 4px)}
+.craft-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;position:relative;z-index:1;
+  margin-bottom:clamp(4px,1vmin,10px)}
+.craft-head h2{margin:0;font-size:clamp(15px,2.6vmin,20px);color:#3D2E18;
+  background:var(--paper);padding:4px 14px;border-radius:8px;box-shadow:2px 3px 0 rgba(80,55,20,.3);transform:rotate(-.6deg)}
+.craft-head .money{font-family:var(--mono);font-size:clamp(12px,2vmin,15px);font-weight:700;color:#FFF6EC;
+  background:var(--accent);padding:4px 12px;border-radius:100px;box-shadow:2px 3px 0 rgba(120,60,30,.35);transform:rotate(.5deg)}
+#techTree{flex:1;position:relative;z-index:1;min-height:0;overflow:hidden;
+  touch-action:none;cursor:grab;border-radius:12px}
+#techTree.dragging{cursor:grabbing}
+#treeCanvas{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+#treeSvg{position:absolute;inset:0;pointer-events:none}
+#treeHint{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);z-index:5;pointer-events:none;
+  font-size:clamp(9px,1.5vmin,11px);color:rgba(255,246,220,.75);
+  background:rgba(60,42,18,.35);padding:3px 12px;border-radius:100px;white-space:nowrap}
+#techBubble{position:absolute;z-index:20;width:min(216px,52vw);background:var(--paper);border-radius:12px;
+  box-shadow:0 12px 28px -10px rgba(60,45,20,.6),1px 2px 0 rgba(120,100,60,.2);
+  padding:10px 12px;display:none}
+#techBubble.show{display:block;animation:bubIn .15s ease}
+@keyframes bubIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+#techBubble::after{content:"";position:absolute;right:-6px;top:var(--ay,50%);width:12px;height:12px;
+  background:var(--paper);transform:translateY(-50%) rotate(45deg)}
+#techBubble.flip::after{left:-6px;right:auto}
+.tb-name{font-weight:800;font-size:clamp(12px,2vmin,14px);color:var(--ink);display:flex;justify-content:space-between;align-items:baseline}
+.tb-name i{font-style:normal;font-family:var(--mono);font-size:.78em;color:var(--mute);font-weight:600}
+.tb-desc{font-size:clamp(10px,1.7vmin,12px);color:var(--ink-2);line-height:1.55;margin:6px 0}
+.tb-cond{font-size:clamp(9.5px,1.6vmin,11px);border-radius:7px;padding:5px 8px;margin-bottom:7px;line-height:1.45}
+.tb-cond.lock{background:rgba(201,79,61,.1);color:var(--crit);border:1px dashed rgba(201,79,61,.4)}
+.tb-cond.ok{background:rgba(110,158,88,.1);color:var(--good);border:1px dashed rgba(110,158,88,.4)}
+#techBubble .pbtn{width:100%;background:var(--accent);color:#FFF6EC;box-shadow:2px 3px 0 rgba(120,80,45,.35)}
+#techBubble .pbtn.off{opacity:.4}
+#techBubble .pbtn.max{background:var(--good)}
+.tcenter{position:absolute;transform:translate(-50%,-50%) rotate(-3deg);z-index:2;
+  width:88px;height:88px;border-radius:50%;background:var(--paper);
+  box-shadow:2px 4px 0 rgba(80,55,20,.35);display:flex;align-items:center;justify-content:center;
+  font-weight:900;font-size:15px;color:var(--ink);letter-spacing:.05em}
+.tnode{position:absolute;transform:translate(-50%,-50%);z-index:3;
+  display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.tcard{position:relative;width:54px;height:54px;border-radius:13px;
+  display:flex;align-items:center;justify-content:center;transform:rotate(-2deg)}
+.tnode:nth-child(even) .tcard{transform:rotate(2deg)}
+.tcard .art{position:relative;width:74%;height:74%}
+.tcard .tlv{position:absolute;right:-8px;top:-8px;color:#FFF6EC;
+  font-family:var(--mono);font-size:10px;font-weight:700;padding:1px 6px;border-radius:100px}
+.tnode .tname{font-size:10px;font-weight:800;padding:1px 7px;border-radius:5px;white-space:nowrap}
+.tnode .tprice{font-family:var(--mono);font-size:10px;font-weight:700;border-radius:5px;padding:0 6px}
+/* 未解锁：虚线框占位（不透内容，只能看到"下一级"）——用户2026-07-04定 */
+.tnode.locked .tcard{background:transparent;border:2.5px dashed rgba(255,246,220,.55);
+  box-shadow:none;color:rgba(255,246,220,.75);font-size:24px;font-weight:800}
+.tnode.locked .tname{color:rgba(255,246,220,.6);background:transparent;box-shadow:none}
+.tnode.fresh .tcard{background:#FFFDF6;border:2.5px dashed var(--kraft-deep);box-shadow:1px 2px 0 rgba(80,55,20,.18)}
+.tnode.fresh .art{opacity:.55}
+.tnode.fresh .tname{color:var(--ink-2);background:var(--paper);box-shadow:1px 2px 0 rgba(80,55,20,.2)}
+.tnode.fresh .tprice{color:#B5763C;background:#FBF6EA;border:1px dashed var(--kraft-deep)}
+.tnode.owned .tcard{background:var(--paper);border:3px solid var(--accent);box-shadow:2px 3px 0 rgba(80,55,20,.3)}
+.tnode.owned .tlv{background:var(--accent)}
+.tnode.owned .tname{color:var(--ink);background:var(--paper);box-shadow:1px 2px 0 rgba(80,55,20,.25)}
+.tnode.owned .tprice{color:#B5763C;background:#FBF6EA;border:1px dashed var(--kraft-deep)}
+.tnode.max .tcard{border-color:var(--good)}
+.tnode.max .tlv{background:var(--good)}
+.tnode.can .tcard{outline:2.5px dashed var(--accent);outline-offset:3px}
+.tnode.can .tprice{background:var(--accent);color:#FFF6EC;border-color:transparent;animation:sway 1.4s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(3deg)}}
+.tnode.sel .tcard{outline:3.5px solid var(--accent);outline-offset:3px}
+/* 工具拟物零件（复用） */
+.art .p{position:absolute}
+.artPaper .p1{inset:18% 12% 22% 18%;background:#FBF6EA;border-radius:5%;transform:rotate(-6deg)}
+.artPaper .p2{inset:14% 14% 26% 14%;background:#FFFDF6;border-radius:5%;transform:rotate(3deg);
+  box-shadow:inset 0 0 0 1px rgba(150,120,70,.15)}
+.artPaper .p3{inset:10% 18% 30% 10%;background:#FFF;border-radius:5%;transform:rotate(-1deg);
+  box-shadow:inset 0 0 0 1px rgba(150,120,70,.2)}
+.artPaper .p3::after{content:"";position:absolute;left:12%;right:12%;top:30%;height:1px;background:rgba(150,120,70,.3);
+  box-shadow:0 5px 0 rgba(150,120,70,.25),0 10px 0 rgba(150,120,70,.2)}
+.artFan .p{left:38%;bottom:12%;width:24%;height:62%;border-radius:12% 12% 6% 6%;transform-origin:50% 92%;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.artFan .f0{background:var(--t0)} .artFan .f1{background:var(--t1)} .artFan .f2{background:var(--t2)}
+.artFan .f3{background:var(--t3)} .artFan .f4{background:var(--t4)}
+.artFan .f5{background:linear-gradient(180deg,#E88A8A,#EBC868,#92C97E,#7BA6DE,#B195D6)}
+.artFan .lock{filter:grayscale(1) brightness(1.25);opacity:.45}
+.artFan .pin{left:44%;bottom:8%;width:12%;height:12%;border-radius:50%;background:#8A6A3A;z-index:2}
+.artGlue .body{inset:26% 26% 8% 26%;background:#FFFDF6;border-radius:16%;box-shadow:inset 0 0 0 1.5px rgba(150,120,70,.3)}
+.artGlue .liquid{left:29%;right:29%;bottom:11%;height:0%;background:#F2B34C;border-radius:0 0 14% 14%;transition:height .3s}
+.artGlue .neck{left:41%;top:14%;width:18%;height:14%;background:#E8DBC0}
+.artGlue .cap{left:36%;top:2%;width:28%;height:13%;background:var(--accent);border-radius:20%}
+.artGlue .label{left:32%;top:44%;width:36%;height:20%;background:var(--paper);border-radius:8%;
+  box-shadow:inset 0 0 0 1px rgba(150,120,70,.25)}
+.artJar .body{inset:20% 20% 6% 20%;background:rgba(255,253,246,.75);border-radius:18%;
+  box-shadow:inset 0 0 0 1.5px rgba(150,120,70,.35)}
+.artJar .lid{left:24%;top:10%;width:52%;height:12%;background:#8A6A3A;border-radius:30%}
+.artJar .d{width:12%;height:9%;border-radius:30%}
+.artJar .d1{left:32%;bottom:14%;background:var(--t0);transform:rotate(20deg)}
+.artJar .d2{left:50%;bottom:12%;background:var(--t1);transform:rotate(-15deg)}
+.artJar .d3{left:40%;bottom:26%;background:var(--t3);transform:rotate(40deg)}
+.artJar .d4{left:56%;bottom:26%;background:var(--accent);transform:rotate(-30deg)}
+.artJar .d5{left:30%;bottom:38%;background:var(--t2);transform:rotate(10deg)}
+.artScis .b1{left:18%;top:14%;width:14%;height:52%;background:#B8C4CC;border-radius:50% 50% 8% 8%;
+  transform:rotate(-24deg);box-shadow:inset -2px 0 0 rgba(0,0,0,.12)}
+.artScis .b2{right:18%;top:14%;width:14%;height:52%;background:#CCD6DC;border-radius:50% 50% 8% 8%;
+  transform:rotate(24deg);box-shadow:inset 2px 0 0 rgba(0,0,0,.1)}
+.artScis .pin{left:44%;top:48%;width:12%;height:12%;border-radius:50%;background:#8A6A3A;z-index:2}
+.artScis .h1{left:16%;bottom:4%;width:24%;height:26%;border:5px solid var(--accent);border-radius:50%;transform:rotate(-14deg)}
+.artScis .h2{right:16%;bottom:4%;width:24%;height:26%;border:5px solid var(--accent);border-radius:50%;transform:rotate(14deg)}
+.artTwz .a1{left:30%;top:8%;width:9%;height:74%;background:#C9A15A;border-radius:100px;transform:rotate(14deg);transform-origin:50% 8%}
+.artTwz .a2{left:58%;top:8%;width:9%;height:74%;background:#B8904E;border-radius:100px;transform:rotate(-14deg);transform-origin:50% 8%}
+.artTwz .joint{left:42%;top:4%;width:16%;height:12%;background:#8A6A3A;border-radius:40%}
+.artTwz .g{left:44%;bottom:4%;width:14%;height:11%;clip-path:polygon(50% 100%,100% 0,0 0);background:var(--t0)}
+.artTear .p1{inset:16% 52% 20% 8%;background:#FFFDF6;border-radius:6% 0 0 6%;transform:rotate(-5deg);
+  box-shadow:inset 0 0 0 1px rgba(150,120,70,.2)}
+.artTear .p2{inset:14% 8% 22% 52%;background:#FBF6EA;border-radius:0 6% 6% 0;transform:rotate(6deg);
+  box-shadow:inset 0 0 0 1px rgba(150,120,70,.2)}
+.artTear .zig{left:46%;top:12%;bottom:18%;width:8%;
+  background:repeating-linear-gradient(180deg,transparent 0 4px,rgba(150,110,60,.55) 4px 6px)}
+.artKnife .body{left:12%;top:38%;width:58%;height:24%;background:#8C6DB5;border-radius:12%;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18)}
+.artKnife .slider{left:22%;top:42%;width:20%;height:16%;background:#6E549A;border-radius:20%}
+.artKnife .blade{left:66%;top:40%;width:24%;height:20%;background:#D8DEE2;
+  clip-path:polygon(0 0,100% 55%,100% 100%,0 100%)}
+.artKnife .tip{left:86%;top:49%;width:8%;height:11%;background:#AEB6BC;clip-path:polygon(0 0,100% 100%,0 100%)}
+.artTape .ring{inset:16% 16% 16% 16%;border-radius:50%;background:rgba(255,250,238,.9);
+  box-shadow:inset 0 0 0 10px #EBC868, inset 0 0 0 1px rgba(150,120,70,.3)}
+.artTape .strip{left:62%;top:64%;width:34%;height:14%;background:#F2DFA0;transform:rotate(24deg);
+  clip-path:polygon(0 0,100% 0,92% 50%,100% 100%,0 100%)}
+.artDye .bottle{inset:22% 28% 6% 28%;background:rgba(255,253,246,.85);border-radius:14%;
+  box-shadow:inset 0 0 0 1.5px rgba(150,120,70,.3)}
+.artDye .liq{left:31%;right:31%;bottom:9%;border-radius:0 0 12% 12%;opacity:.85;transition:height .3s}
+.artDye .cork{left:39%;top:10%;width:22%;height:14%;background:#8A6A3A;border-radius:20%}
+.artLens .ring{left:14%;top:10%;width:52%;height:52%;border:6px solid #8A6A3A;border-radius:50%;
+  background:rgba(255,253,246,.35)}
+.artLens .handle{left:58%;top:60%;width:34%;height:12%;background:#8A6A3A;border-radius:100px;transform:rotate(45deg)}
+.artLens .spark{left:28%;top:24%;font-size:15px;color:#C9A227;font-weight:800}
+.artTwin .g1{left:16%;top:24%;width:42%;height:42%;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  background:linear-gradient(90deg,var(--t0) 50%,var(--t0d) 50%);transform:rotate(-8deg)}
+.artTwin .g2{left:40%;top:36%;width:42%;height:42%;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  background:linear-gradient(90deg,var(--t3) 50%,var(--t3d) 50%);transform:rotate(10deg)}
+.artScrap .s1{left:18%;top:28%;width:28%;height:22%;background:#FFFDF6;clip-path:polygon(0 0,100% 20%,70% 100%);
+  transform:rotate(-14deg);box-shadow:inset 0 0 0 1px rgba(150,120,70,.25)}
+.artScrap .s2{left:48%;top:24%;width:26%;height:24%;background:var(--t0);opacity:.8;
+  clip-path:polygon(20% 0,100% 40%,0 100%);transform:rotate(18deg)}
+.artScrap .s3{left:32%;top:52%;width:30%;height:22%;background:#EBC868;opacity:.85;
+  clip-path:polygon(0 30%,100% 0,80% 100%);transform:rotate(-6deg)}
+/* 折角纸：明确尺寸+border三角（修复小卡片下零件错位成大白块的bug） */
+.artDog .dgsheet{left:18%;top:14%;width:60%;height:70%;background:#FFFDF6;border-radius:10%;
+  box-shadow:inset 0 0 0 1px rgba(150,120,70,.28)}
+.artDog .dgfold{left:calc(18% + 60% - 13px);top:14%;width:0;height:0;border-style:solid;
+  border-width:0 0 13px 13px;border-color:transparent transparent #E0D2B4 transparent;
+  filter:drop-shadow(-1px 1px 1px rgba(120,95,50,.3))}
+.artSlow .body{inset:26% 30% 8% 30%;background:#FFFDF6;border-radius:16%;
+  box-shadow:inset 0 0 0 1.5px rgba(150,120,70,.3)}
+.artSlow .liquid{left:33%;right:33%;bottom:11%;height:34%;background:#7BA6DE;border-radius:0 0 14% 14%}
+.artSlow .cap{left:40%;top:14%;width:20%;height:13%;background:#41689F;border-radius:20%}
+.artSlow .w1,.artSlow .w2,.artSlow .w3{width:16%;height:7%;border-radius:100px;background:rgba(93,143,214,.55)}
+.artSlow .w1{left:8%;top:30%} .artSlow .w2{left:4%;top:44%} .artSlow .w3{left:8%;top:58%}
+.craft-foot{display:flex;justify-content:space-between;align-items:center;position:relative;z-index:1;
+  margin-top:clamp(4px,1vmin,8px)}
+#craftBack{background:var(--paper);color:var(--ink);box-shadow:2px 3px 0 rgba(80,55,20,.3);min-width:clamp(150px,26vmin,220px)}
+#resetBtn{background:none;border:none;color:rgba(255,246,220,.55);font-size:clamp(9px,1.5vmin,11px);
+  cursor:pointer;text-decoration:underline dashed;padding:4px}
+/* 设置面板：音效 / 背景音乐 / 特效动画 三个开关 */
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 4px;border-bottom:1px dashed var(--line);font-size:clamp(12px,2.1vmin,15px);color:var(--ink);font-weight:700;text-align:left}
+.setrow .sd{font-size:.72em;color:var(--mute);font-weight:500;margin-top:2px}
+.bk-row{display:flex;gap:10px}
+.bk-row .pbtn{flex:1}
+.toggle{border:none;cursor:pointer;font-family:var(--sans);font-weight:800;font-size:clamp(11px,1.9vmin,13px);
+  border-radius:100px;padding:5px 18px;min-width:62px;box-shadow:1px 2px 0 rgba(120,100,60,.2);flex:none}
+.toggle.on{background:var(--good);color:#FFF6EC}
+.toggle.off{background:var(--paper-3);color:var(--mute)}
+
+/* ---------- 覆盖层 ---------- */
+.overlay{position:absolute;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:center;
+  padding:20px;text-align:center;background:rgba(80,64,36,.45);backdrop-filter:blur(2px)}
+.overlay.show{display:flex;animation:fade .3s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet{background:var(--paper);border-radius:12px;padding:clamp(16px,3.4vmin,28px) clamp(20px,4vmin,32px);
+  max-width:min(460px,92vw);max-height:92vh;overflow-y:auto;
+  box-shadow:0 18px 44px -18px rgba(60,45,20,.6),1px 2px 0 rgba(120,100,60,.2);transform:rotate(-.4deg)}
+.sheet .eyebrow{font-family:var(--mono);font-size:.72em;letter-spacing:.26em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.sheet h1{font-size:clamp(20px,4vmin,27px);margin:0 0 8px;color:var(--ink)}
+.sheet h2{font-size:clamp(16px,3.2vmin,21px);margin:0 0 8px}
+.sheet h2.lost{color:var(--crit)} .sheet h2.safe{color:var(--good)}
+.sheet p{color:var(--ink-2);font-size:clamp(11.5px,2vmin,14px);line-height:1.65;margin:0 0 6px}
+.sheet p .k{color:var(--accent);font-weight:700} .sheet p .g{color:var(--good);font-weight:700}
+.stat{font-family:var(--mono);margin:10px auto 4px;font-size:.88em;color:var(--ink-2);max-width:270px}
+.stat .line{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--line)}
+.stat .line b{color:var(--ink)} .stat .line.big b{color:var(--accent);font-size:1.25em}
+.report{margin:10px auto 2px;max-width:300px;background:#FBF6EA;border:1px dashed var(--kraft-deep);
+  border-radius:10px;padding:8px 12px;font-size:.85em;color:var(--ink-2);text-align:left;line-height:1.8}
+.report .gems{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:2px 0 4px}
+.report .gc{display:flex;align-items:center;gap:3px;font-family:var(--mono);font-size:.92em}
+.report .gc i{width:11px;height:11px;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);display:inline-block}
+.ov-btns{display:flex;flex-direction:column;gap:8px;margin-top:12px;align-items:center}
+.ov-btns .pbtn{min-width:min(240px,70vw)}
+.btn-main{background:var(--accent);color:#FFF6EC;box-shadow:2px 3px 0 rgba(120,80,45,.35)}
+.btn-ad{background:#8C6DB5;color:#fff;box-shadow:2px 3px 0 rgba(90,60,120,.35);
+  outline:1.5px dashed rgba(255,255,255,.5);outline-offset:-4px}
+.btn-ghost{background:transparent;color:var(--mute);border:1px solid var(--line);font-weight:600}
+.adnote{font-family:var(--mono);font-size:.66em;color:var(--mute);margin-top:8px;letter-spacing:.05em}
+#adBox{background:#1E1A14;color:#F5ECDB;border-radius:12px;padding:26px 34px;max-width:min(380px,90vw);
+  box-shadow:0 18px 44px -18px rgba(0,0,0,.7)}
+#adBox .t{font-size:clamp(13px,2.4vmin,16px);font-weight:700;margin-bottom:8px}
+#adBox .cnt{font-family:var(--mono);font-size:clamp(26px,6vmin,40px);font-weight:800;color:#EBC868}
+#adBox .n{font-size:.78em;color:#9A8A66;margin-top:8px}
+/* 生涯统计表 */
+.lifegrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0;font-size:.85em}
+.lifegrid .lg{background:#FBF6EA;border:1px solid var(--line);border-radius:8px;padding:6px 10px;text-align:left}
+.lifegrid .lg .k{font-size:.75em;color:var(--mute)}
+.lifegrid .lg .v{font-weight:800;font-family:var(--mono)}
+/* —— 成就·手工纪念册 —— */
+.ach-sheet{width:min(760px,94vw);max-height:88vh;overflow-y:auto}
+.ach-sum{font-size:.9em;color:var(--ink-2);margin:2px 0 6px}
+.ach-sum b{color:var(--accent);font-family:var(--mono);font-size:1.3em}
+.ach-cat{text-align:left;font-weight:900;font-size:.92em;color:var(--ink);margin:14px 2px 6px;
+  padding-bottom:4px;border-bottom:1.5px dashed var(--kraft-deep)}
+.achgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:8px}
+.ac-card{display:flex;gap:9px;align-items:center;background:#FBF6EA;border:1px solid var(--line);
+  border-radius:10px;padding:8px 9px;text-align:left;opacity:.6}
+.ac-card.ok{opacity:1;border:1.5px solid var(--accent);background:#FFFDF6;box-shadow:1px 2px 0 rgba(120,90,45,.16)}
+.ac-card.secret{opacity:.5;border-style:dashed}
+.ac-b{flex:none;width:38px;height:38px;border-radius:50%;background:#FFFDF6;border:2px dashed var(--kraft-deep);
+  display:flex;align-items:center;justify-content:center;font-size:20px;transform:rotate(-4deg)}
+.ac-card.ok .ac-b{border:2px solid var(--accent);background:var(--paper)}
+.ac-i{min-width:0;flex:1}
+.ac-n{font-weight:800;font-size:.86em;line-height:1.2}
+.ac-d{font-size:.72em;color:var(--mute);line-height:1.25;margin-top:1px}
+.ac-s{font-size:.72em;font-family:var(--mono);color:var(--ink-2);margin-top:2px}
+.ac-s.okk{color:var(--good);font-weight:800}
+#achToast{position:absolute;top:14px;left:50%;transform:translate(-50%,-160%);z-index:60;
+  background:var(--paper);border:2px solid var(--accent);border-radius:14px;padding:9px 16px 9px 10px;
+  display:flex;align-items:center;gap:11px;box-shadow:3px 5px 0 rgba(120,80,45,.3);
+  opacity:0;transition:transform .4s cubic-bezier(.2,1.3,.4,1),opacity .4s;pointer-events:none;max-width:86vw}
+#achToast.show{transform:translate(-50%,0);opacity:1}
+#achToast .at-b{width:46px;height:46px;border-radius:50%;background:#FFFDF6;border:2px dashed var(--kraft-deep);
+  display:flex;align-items:center;justify-content:center;font-size:25px;transform:rotate(-5deg);flex:none}
+#achToast .at-k{font-size:.72em;color:var(--accent);font-weight:800;letter-spacing:.08em}
+#achToast .at-n{font-size:1.05em;font-weight:900;color:var(--ink)}
+/* 每日信封提示 */
+#toast{position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:95;display:none;
+  background:var(--paper);border-radius:100px;padding:8px 20px;font-size:13px;font-weight:700;color:var(--ink);
+  box-shadow:0 10px 26px -8px rgba(60,45,20,.55),1px 2px 0 rgba(120,100,60,.25)}
+#toast.show{display:block;animation:toastIn 3.4s ease forwards}
+@keyframes toastIn{0%{opacity:0;transform:translateX(-50%) translateY(-14px)}8%,84%{opacity:1;transform:translateX(-50%)}100%{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+
+/* ---------- 开场封面（方案C 碎条撕开） ---------- */
+#cover{position:fixed;inset:0;z-index:90;overflow:hidden}
+.halfWrap{position:absolute;inset:0;pointer-events:none;will-change:transform}
+#cvWrapT{filter:drop-shadow(0 3px 3px rgba(90,65,30,.35));z-index:5}
+#cvWrapB{filter:drop-shadow(0 -3px 3px rgba(90,65,30,.3));z-index:5}
+.cv-half{position:absolute;inset:0;background:var(--kraft);will-change:clip-path;pointer-events:none}
+.cv-half::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(120,90,50,.045) 3px 4px),
+             radial-gradient(120% 90% at 50% 50%,transparent 55%,rgba(120,90,50,.12))}
+.cv-inner{position:absolute;left:0;right:0;text-align:center;padding:0 20px;will-change:transform}
+#cvTop .cv-inner{bottom:56%}
+#cvBot .cv-inner{top:56%}
+.cv-eyebrow{font-family:var(--mono);font-size:clamp(10px,1.8vmin,13px);letter-spacing:.3em;color:var(--ink-2);margin-bottom:10px}
+.cv-title{display:inline-block;font-size:clamp(30px,7vmin,52px);font-weight:900;color:var(--ink);
+  background:var(--paper);padding:6px 26px;border-radius:12px;transform:rotate(-1.2deg);
+  box-shadow:3px 4px 0 rgba(120,100,60,.3);letter-spacing:.06em}
+.cv-save{font-size:clamp(11px,2vmin,14px);color:var(--ink-2);margin-bottom:8px}
+.cv-save b{color:var(--accent)}
+.cv-hint{font-size:clamp(12px,2.2vmin,15px);font-weight:700;color:var(--ink)}
+#cvReset{position:absolute;right:16px;bottom:14px;background:var(--paper);border:1px dashed var(--kraft-deep);
+  border-radius:8px;padding:7px 12px;font-family:var(--sans);font-size:clamp(10px,1.8vmin,12px);
+  font-weight:700;color:var(--ink-2);cursor:pointer;transform:rotate(-1deg);
+  box-shadow:1px 2px 0 rgba(120,100,60,.25);pointer-events:auto}
+#cover.finC #cvWrapT{transition:transform .75s cubic-bezier(.34,1.56,.64,1);transform:translateY(-120%) rotate(-2.2deg)}
+#cover.finC #cvWrapB{transition:transform .75s cubic-bezier(.34,1.56,.64,1);transform:translateY(120%) rotate(2deg)}
+#cutTrack{position:absolute;left:5%;right:5%;top:50%;height:0;z-index:8}
+#cutDash{position:absolute;left:0;right:0;top:-1.5px;border-top:3px dashed rgba(74,62,44,.5)}
+#cutScis{position:absolute;left:0;top:0;width:clamp(44px,9vmin,64px);height:clamp(44px,9vmin,64px);
+  transform:translate(-50%,-50%) rotate(90deg);filter:drop-shadow(2px 3px 2px rgba(80,55,20,.4));z-index:2}
+#cover:not(.cutting) #cutScis{animation:scisIdle 1.5s ease-in-out infinite}
+@keyframes scisIdle{0%,100%{transform:translate(-50%,-50%) rotate(90deg) scale(1)}
+  50%{transform:translate(-46%,-50%) rotate(90deg) scale(1.08)}}
+.cvbit{position:absolute;z-index:9;pointer-events:none;animation:cvbitFly .8s ease-in forwards}
+@keyframes cvbitFly{0%{opacity:1;transform:translate(0,0) rotate(0)}
+  100%{opacity:0;transform:translate(var(--bx,10px),var(--by,60px)) rotate(var(--br,120deg))}}
+.cvfiber{position:absolute;width:1.5px;background:var(--kraft-deep);z-index:6;pointer-events:none;
+  animation:cvfiberFade 1.8s ease-out forwards}
+@keyframes cvfiberFade{0%{opacity:.9}60%{opacity:.7}100%{opacity:0}}
+/* ===================== 转生系统（装订成册 / 藏书阁）2026-07-05 ===================== */
+.rb-node{flex:none;border-radius:10px;padding:5px 14px;cursor:pointer;text-align:center;line-height:1.15;
+  box-shadow:2px 3px 0 rgba(120,90,30,.3);transition:transform .1s}
+.rb-node .rt{font-weight:900;font-size:clamp(11px,1.9vmin,14px)}
+.rb-node .rss{font-size:clamp(8.5px,1.4vmin,10.5px);opacity:.92;margin-top:1px}
+.rb-node.ready{background:linear-gradient(160deg,#FFF6D8,#EBCF6E);border:2px solid #A8841C;color:#5a4408}
+.rb-node.ready:active{transform:scale(.96) rotate(-.6deg)}
+.rb-node.locked{background:repeating-linear-gradient(45deg,#EFE6D2 0 7px,#EAE0C8 7px 14px);
+  border:2px dashed #B29B72;color:#9A8A66;box-shadow:none;cursor:not-allowed}
+#shelfPage{position:absolute;inset:0;z-index:32;display:none;flex-direction:column;overflow-y:auto;
+  background:linear-gradient(160deg,#5b4a2c,#3f3320);padding:clamp(8px,1.8vmin,16px) clamp(12px,2.4vmin,22px)}
+#shelfPage.show{display:flex;animation:pageIn .25s ease}
+#shelfPage .craft-head .money{background:#B8860B}
+#shelfTop{position:relative;z-index:1;display:flex;align-items:flex-end;gap:14px;
+  background:linear-gradient(180deg,#F3E7CC,#E7D8B4);border:1.5px solid #C7B48E;border-radius:12px;
+  padding:12px 14px 10px;margin-bottom:8px}
+#shelfTop::after{content:"";position:absolute;left:8px;right:8px;bottom:2px;height:10px;border-radius:4px;
+  background:linear-gradient(180deg,#C7B48E,#B29B72)}
+.rb-counter{flex:none;text-align:center;padding-right:14px;border-right:2px dashed #C7B48E}
+.rb-counter .cn{font-size:clamp(30px,7vmin,44px);font-weight:900;color:#A8841C;font-family:Georgia,serif;line-height:.9}
+.rb-counter .cl{font-size:clamp(10px,1.6vmin,12px);color:#7A6A50}
+.rb-shelf{flex:1;display:flex;align-items:flex-end;gap:8px;overflow-x:auto;min-height:76px;padding-bottom:6px}
+.rb-shelf .spine{flex:none;width:40px;height:70px;border-radius:5px 5px 2px 2px;display:flex;flex-direction:column;
+  align-items:center;justify-content:space-between;padding:6px 2px;color:#4a3708;box-shadow:2px 2px 3px rgba(120,90,40,.25)}
+.rb-shelf .spine.v1{background:linear-gradient(100deg,#EBCF6E,#D8B23E);border:1.5px solid #A8841C}
+.rb-shelf .spine.empty{background:none;border:2px dashed #C7B48E;opacity:.5;color:#9A8A66;height:56px}
+.rb-shelf .spine .big1{font-size:20px;font-weight:900;font-family:Georgia,serif}
+.rb-shelf .spine .lab{font-size:9px;writing-mode:vertical-rl;letter-spacing:1px;font-weight:700}
+#shelfTree{flex:1;position:relative;z-index:1;min-height:clamp(230px,42vmin,320px);margin-bottom:6px}
+.rhub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;
+  width:clamp(52px,10.5vmin,74px);height:clamp(52px,10.5vmin,74px);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 38% 34%,#F3E2A8,#C9A227 62%,#A8841C);color:#4a3708;
+  font-size:clamp(15px,3vmin,22px);font-weight:900;border:2px solid #FFF6D8;box-shadow:1px 2px 4px rgba(120,90,20,.4)}
+.rhub span{font-size:clamp(8px,1.5vmin,10px);margin-top:1px}
+.rnode{position:absolute;transform:translate(-50%,-50%);z-index:3;width:clamp(58px,12vmin,84px);
+  display:flex;flex-direction:column;align-items:center;cursor:pointer;
+  background:linear-gradient(160deg,#FFFCF0,#F3E4B4);border:2px solid #A8841C;border-radius:12px;
+  padding:7px 4px;box-shadow:2px 3px 0 rgba(150,120,40,.28);text-align:center;transition:transform .1s}
+.rnode:active{transform:translate(-50%,-50%) scale(.95)}
+.rnode.sel{outline:2.5px solid #E36D4F;outline-offset:2px}
+.rnode.can{animation:rbpulse 1.4s ease-in-out infinite}
+@keyframes rbpulse{0%,100%{box-shadow:2px 3px 0 rgba(150,120,40,.28)}50%{box-shadow:0 0 0 4px rgba(232,199,110,.55)}}
+.rnode.maxed{background:linear-gradient(160deg,#EDF3E6,#CFE0BE);border-color:#6E9E58}
+.rnode .ric{font-size:clamp(16px,3vmin,22px);line-height:1}
+.rnode .rnm{font-size:clamp(9px,1.7vmin,11px);font-weight:800;color:#5a4408;margin-top:2px}
+.rnode .rlv{font-size:clamp(8px,1.5vmin,10px);color:#7A6A50;font-family:var(--mono)}
+#shelfDetail{flex:none;position:relative;z-index:1;background:var(--paper);border-radius:12px;
+  padding:10px 14px;min-height:56px;box-shadow:2px 3px 0 rgba(80,55,20,.25)}
+.rd-hint{font-size:clamp(11px,1.8vmin,13px);color:var(--mute);text-align:center;padding:6px 0}
+.rd-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.rd-h b{font-size:clamp(13px,2.2vmin,15px)}
+.rd-h i{font-style:normal;font-family:var(--mono);font-size:.78em;color:var(--mute)}
+.rd-desc{font-size:clamp(11px,1.8vmin,12.5px);color:var(--ink-2);margin:5px 0 8px;line-height:1.5}
+#shelfDetail .pbtn{width:100%;background:#C9A227;color:#3A2C08;box-shadow:2px 3px 0 rgba(150,120,40,.35)}
+#shelfDetail .pbtn.off{opacity:.45}
+#shelfDetail .pbtn.max{background:#6E9E58;color:#FFF6EC}
+.rb-mrow{display:flex;gap:8px;font-size:clamp(11px,1.8vmin,13px);padding:7px 10px;border-radius:9px;margin:6px 0;
+  text-align:left;line-height:1.45}
+.rb-mrow .h{font-weight:800;flex:none;width:48px}
+.rb-mrow.clr{background:rgba(201,79,61,.1);border:1px solid rgba(201,79,61,.35)}
+.rb-mrow.keep{background:rgba(110,158,88,.12);border:1px solid rgba(110,158,88,.35)}
+.rb-mrow.get{background:rgba(201,162,39,.14);border:1px solid rgba(201,162,39,.4)}
+/* ===== 连击爆彩·彩虹带（格子背后 z-1 · 平面2D预制CSS · 零逐帧）2026-07-05 ===== */
+#bandFx{position:absolute;inset:0;z-index:1;overflow:hidden;pointer-events:none}  /* 放格子背后(z<格子2)：格子挡住大部分、只从缝里透一点(用户要低调) */
+.cband{position:absolute;left:-40%;width:180%;height:var(--h,14%);transform:rotate(var(--ang));transform-origin:center;pointer-events:none}
+.cband i{display:block;width:100%;height:100%;border-radius:100px;opacity:0;
+  background:linear-gradient(to bottom,#b6a4d2 0 16.66%,#a3c6de 0 33.33%,#aed3a6 0 50%,#efe7b6 0 66.66%,#f0ceb2 0 83.33%,#e6aaa3 0 100%);
+  animation:cbandSweep var(--dur,2s) cubic-bezier(.33,.02,.35,1) var(--delay,0s) forwards}
+.cband.rev i{animation-name:cbandSweepRev}
+@keyframes cbandSweep{0%{transform:translateX(-125%);opacity:0}16%{opacity:.28}68%{transform:translateX(-1%);opacity:.28}86%{opacity:.22}100%{transform:translateX(125%);opacity:0}}
+@keyframes cbandSweepRev{0%{transform:translateX(125%);opacity:0}16%{opacity:.28}68%{transform:translateX(1%);opacity:.28}86%{opacity:.22}100%{transform:translateX(-125%);opacity:0}}
+/* 一点成彩·彩色格（盖着时显彩虹条纹、轻微呼吸招手；预制CSS）2026-07-05 */
+.cell.rcell{background:linear-gradient(135deg,#df5f54,#ea9758 22%,#eed86e 42%,#74b866 60%,#5aa5d2 80%,#8a63c0)!important;
+  border:2px solid #FFF6EC!important;animation:rcellBreath 1.6s ease-in-out infinite}
+@keyframes rcellBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+</style>
+</head>
+<body>
+
+<div id="rotateTip"><div class="ph">📱</div><div>请把手机横过来看这本册子</div></div>
+<div id="toast"></div>
+<div id="achToast"></div>
+
+<div id="stage">
+  <div id="sidebar">
+    <div class="card page">
+      <div class="k">当前进度</div>
+      <div class="v big">第 <span id="pageNum">1</span> 页</div>
+    </div>
+    <div class="card safe">
+      <div class="k">剩余安全步数 · 揭和捏都算一步</div>
+      <div class="v big"><span id="safeV">—</span><i class="unit">步</i></div>
+      <div class="sub" id="safeSub">走完就进风险区</div>
+    </div>
+    <div class="card glue">
+      <div class="duo">
+        <div><div class="k">胶力</div><div class="v"><span id="glueV">100%</span></div></div>
+        <div><div class="k">收晶倍率</div><div class="v" id="multV">×1.00</div></div>
+      </div>
+      <div class="tape"><div id="tapeFill"></div><div id="tapeMark"></div></div>
+      <div class="sub" id="tapeSub">安全步数内随便揭</div>
+    </div>
+    <div class="card">
+      <div class="haul-row"><span>本页已捏</span><b class="risk" id="haulBox">✦ <span id="haulVal">0</span></b></div>
+      <div class="haul-row" style="margin-top:3px"><span>收藏册</span><b>✦ <span id="albumVal">0</span></b></div>
+      <div class="haul-row" id="comboRow"><span>连击</span><b><span id="comboVal">0</span> 层</b></div>
+    </div>
+    <button class="pbtn" id="collectBtn">📖 收入册子<small>散了本页已捏的就全没了</small></button>
+    <button class="pbtn" id="knifeBtn">✂ 裁纸刀 ×<span id="knifeN">1</span></button>
+    <button class="pbtn" id="knobBtn">🎛 自动贪 <span id="knobV">0</span> 步<small>点击调档 · 机器替你走险棋</small></button>
+    <button class="pbtn" id="dblBtn">📺 看广告 · 双倍收益5分钟<small>本页与挂机收益翻倍</small></button>
+    <button class="pbtn" id="craftBtn">🛠 手工台<small>升级剪刀 / 胶水 / 纸样</small></button>
+    <div id="tip">揭开纸片试试——里面藏着纸晶</div>
+    <button id="loginBtn" class="login-sticker"></button>
+    <div class="meta-row">
+      <button id="boardBtn">🏆 排行榜</button>
+      <button id="diaryBtn">📊 生涯统计</button>
+      <button id="achBtn">🏅 纪念册</button>
+      <button id="shelfBtn" style="display:none">🏛 藏书阁</button>
+      <button id="setBtn">⚙ 设置</button>
+    </div>
+    <button id="authorBtn" class="author-btn">💛 关于作者 · 赞助支持</button>
+  </div>
+
+  <div id="pageArea">
+    <div id="track"></div>
+    <div id="bandFx"></div>
+    <div id="grid"></div>
+    <div id="fx"></div>
+    <div id="floatEnv"><div class="body"></div><div class="flap"></div><div class="seal"></div><div class="tag">📺 拆信</div></div>
+    <button id="binderToggle">🔗 自动装订 开</button>
+  </div>
+
+  <div id="craftPage">
+    <div class="craft-head">
+      <h2>🛠 手工台</h2>
+      <div id="rebirthNode" class="rb-node locked"></div>
+      <div class="money">收藏册 ✦ <span id="craftMoney">0</span></div>
+    </div>
+    <div id="techTree">
+      <div id="treeCanvas"></div>
+      <div id="techBubble"></div>
+      <div id="treeHint">🖐 拖动查看 · 双指/滚轮缩放 · 点节点看详情</div>
+    </div>
+    <div class="craft-foot">
+      <button id="resetBtn">重置全部进度</button>
+      <button id="unlockBtn" style="display:none;background:#6E9E58;color:#FFF6EC;border:none;border-radius:8px;padding:6px 14px;font-weight:800;cursor:pointer;box-shadow:2px 3px 0 rgba(60,90,40,.3)">🔓 解锁全部科技（测试）</button>
+      <button class="pbtn" id="craftBack">合上手工台，回到纸页</button>
+    </div>
+  </div>
+
+  <div id="shelfPage">
+    <div class="craft-head">
+      <h2>🏛 藏书阁</h2>
+      <div class="money">典藏卷 🎗 <span id="spoolCount">0</span></div>
+    </div>
+    <div id="shelfTop">
+      <div class="rb-counter"><div class="cn" id="rbCount">0</div><div class="cl">本典藏 · 已装订</div></div>
+      <div class="rb-shelf" id="rbShelf"></div>
+    </div>
+    <div id="shelfTree"></div>
+    <div id="shelfDetail"></div>
+    <div class="craft-foot">
+      <button class="pbtn" id="shelfBack">合上藏书阁，回到纸页</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovScatter">
+    <div class="sheet">
+      <div class="eyebrow" style="color:var(--crit)">这一步踩空了 · 散架</div>
+      <h2 class="lost">纸页碎了一地</h2>
+      <p>本页已捏的 <span class="k">✦ <span id="lostHaul">0</span></span> 散落一地……<span id="lostWait" style="color:var(--mute)"></span></p>
+      <p id="lostSaved" style="font-size:.85em;color:var(--good)"></p>
+      <div class="ov-btns">
+        <button class="pbtn btn-ad" id="tapeAdBtn">📺 看广告 · 用透明胶带粘回来</button>
+        <button class="pbtn btn-ghost" id="giveUpBtn">算了，翻下一页</button>
+      </div>
+      <div class="adnote">激励视频广告位①「透明胶带」</div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovSettle">
+    <div class="sheet">
+      <div class="eyebrow" style="color:var(--good)">及时收手</div>
+      <h2 class="safe" id="settleTitle">这一页贴进册子了</h2>
+      <div class="report" id="reportS"></div>
+      <div class="stat">
+        <div class="line"><span>本页收获</span><b id="sGain">✦ 0</b></div>
+        <div class="line big"><span>收藏册累计</span><b id="sAlbum">✦ 0</b></div>
+      </div>
+      <p id="settleHint" style="font-size:.85em;color:var(--mute)"></p>
+      <div class="ov-btns">
+        <button class="pbtn btn-ad" id="copyAdBtn">📺 看广告 · 复写纸印一份</button>
+        <button class="pbtn btn-main" id="nextBtn">翻到下一页</button>
+        <button class="pbtn btn-ghost" id="settleCraftBtn">🛠 先去手工台点科技，回来再翻页</button>
+        <button class="pbtn btn-ghost" id="toCraftBtn" style="display:none">🛠 先去手工台，把纸页加大</button>
+      </div>
+      <div class="adnote">激励视频广告位②「复写纸」</div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovOffline">
+    <div class="sheet">
+      <div class="eyebrow">离线装订</div>
+      <h2 class="safe">你不在的时候，装订机没停</h2>
+      <div class="stat">
+        <div class="line"><span>离线时长</span><b id="offTime">—</b></div>
+        <div class="line big"><span>装订收益</span><b id="offGain">✦ 0</b></div>
+      </div>
+      <div class="ov-btns">
+        <button class="pbtn btn-ad" id="offAdBtn">📺 看广告 · 收益 ×2</button>
+        <button class="pbtn btn-main" id="offOkBtn">直接收下</button>
+      </div>
+      <div class="adnote">激励视频广告位③「离线翻倍」</div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovStats">
+    <div class="sheet">
+      <div class="eyebrow">剪贴册档案</div>
+      <h2>生涯统计</h2>
+      <div class="lifegrid" id="lifeGrid"></div>
+      <p id="statsLock" style="font-size:.82em;color:var(--mute)">🔒 点亮技巧线的「纸匠日志」科技，解锁<b>详细篇</b>：最肥一页 / 最高连击 / 双黄三黄 / 悬崖勒马 / 广告与离线账本…</p>
+      <div class="ov-btns"><button class="pbtn btn-main" id="statsOkBtn">合上档案</button></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovAch">
+    <div class="sheet ach-sheet">
+      <div class="eyebrow">越剪越厚的一本册子</div>
+      <h2>🏅 手工纪念册</h2>
+      <div class="ach-sum" id="achSum"></div>
+      <div id="achList"></div>
+      <div class="ov-btns"><button class="pbtn btn-main" id="achOkBtn">合上纪念册</button></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovBoard">
+    <div class="sheet">
+      <div class="eyebrow">剪贴册排行榜</div>
+      <h2>🏆 翻页排行榜</h2>
+      <p style="font-size:.82em;color:var(--mute);margin:-2px 0 4px">比谁的册子翻得多——累计翻页数越高越靠前</p>
+      <div class="board" id="boardList"></div>
+      <p id="boardNote" style="font-size:.74em;color:var(--mute)">翻页越多排名越高 · 先在左下角登录，成绩才会记进排行榜。</p>
+      <div class="ov-btns"><button class="pbtn btn-main" id="boardOkBtn">合上榜单</button></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovSet">
+    <div class="sheet">
+      <div class="eyebrow">设置</div>
+      <h2>⚙ 设置</h2>
+      <div class="setrow"><div>🔊 音效<div class="sd">捏晶、揭纸的啪啪声</div></div><button class="toggle" id="setSfx"></button></div>
+      <div class="setrow"><div>🎵 背景音乐<div class="sd">轻快的纸艺小调</div></div><button class="toggle" id="setBgm"></button></div>
+      <div class="setrow"><div>✨ 特效动画<div class="sd">收纳飞行 / 纸屑 / 彩带</div></div><button class="toggle" id="setFx"></button></div>
+      <div style="text-align:left;margin-top:10px;padding-top:10px;border-top:1px dashed var(--kraft-deep)">
+        <div style="font-weight:700">💾 存档备份</div>
+        <div class="sd" style="margin:1px 0 8px">导出=下载到你电脑；导入=从文件恢复。<b>换设备、清缓存都不丢档。</b></div>
+        <div class="bk-row"><button class="pbtn" id="expSaveBtn">📤 导出存档</button><button class="pbtn" id="impSaveBtn">📥 导入存档</button></div>
+      </div>
+      <input type="file" id="impSaveFile" accept=".txt,.json,.save,application/json" style="display:none">
+      <div class="ov-btns"><button class="pbtn btn-main" id="setOkBtn">合上设置</button></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovAuthor">
+    <div class="sheet">
+      <div class="eyebrow" style="color:var(--accent)">关于作者</div>
+      <h2>💛 一个人做的小游戏</h2>
+      <p class="author-txt">本游戏仅由一个人开发。<br>喜欢这个游戏？<b>赞助作者</b>，你将会获得更多好玩的游戏、内容。<br>感谢支持！</p>
+      <div class="ov-btns" style="flex-direction:column;gap:10px">
+        <button class="pbtn btn-main" id="authorGoBtn">☕ 赞助作者（爱发电）</button>
+        <button class="pbtn" id="authorCloseBtn">先不了，继续玩</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovRebirth">
+    <div class="sheet">
+      <div class="eyebrow" style="color:#B8860B">装订成册 · 转生</div>
+      <h2>📖 确定要装订成册吗？</h2>
+      <p style="color:var(--mute);font-size:.86em;margin:-2px 0 8px">把当前这本剪贴册装订收藏，翻开全新的一本重新开始。</p>
+      <div class="rb-mrow get"><span class="h">会得到</span><span id="rbGet"></span></div>
+      <div class="rb-mrow clr"><span class="h">会清空</span><span id="rbClear"></span></div>
+      <div class="rb-mrow keep"><span class="h">会保留</span><span id="rbKeep"></span></div>
+      <div class="ov-btns">
+        <button class="pbtn btn-main" id="rbGoBtn">✒ 确认装订 · 收进书架</button>
+        <button class="pbtn btn-ghost" id="rbCancelBtn">再想想</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovEnv">
+    <div class="sheet">
+      <div class="eyebrow">一封顺风信</div>
+      <h2>✉ 拆开这封信？</h2>
+      <p>看完一段广告，直接得到 <span class="k" id="envReward">✦ 0</span>，收进收藏册。</p>
+      <div class="ov-btns">
+        <button class="pbtn btn-ad" id="envAdBtn">📺 看广告 · 拆信领取</button>
+        <button class="pbtn btn-ghost" id="envCancelBtn">算了，不看了</button>
+      </div>
+      <div class="adnote">激励视频广告位④「顺风信」</div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovPick">
+    <div class="sheet">
+      <div class="eyebrow">午后剪纸 · 幸运信封</div>
+      <h2>今天的信封自己挑</h2>
+      <p style="color:var(--mute);font-size:.85em">挑一封拆开，当日生效</p>
+      <div class="ov-btns" id="pickBtns"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="ovAd">
+    <div id="adBox">
+      <div class="t">📺 广告播放中…</div>
+      <div class="cnt" id="adCnt">3</div>
+      <div class="n">看完即可领取奖励</div>
+    </div>
+  </div>
+</div>
+
+<!-- 开场封面 -->
+<div id="cover">
+  <div class="halfWrap" id="cvWrapT">
+    <div class="cv-half" id="cvTop">
+      <div class="cv-inner">
+        <div class="cv-eyebrow">一本翻不完的手工册</div>
+        <div class="cv-title">无限剪纸</div>
+      </div>
+    </div>
+  </div>
+  <div class="halfWrap" id="cvWrapB">
+    <div class="cv-half" id="cvBot">
+      <div class="cv-inner">
+        <div class="cv-save" id="cvSave">揭纸找晶，捏了才算；步步惊心，见好就收</div>
+        <div class="cv-hint" id="cvHint">✂ 按住剪刀，沿虚线剪到底</div>
+      </div>
+      <button id="cvReset" style="display:none">↺ 重新开始</button>
+    </div>
+  </div>
+  <div id="cutTrack">
+    <div id="cutDash"></div>
+    <div class="art artScis" id="cutScis"><div class="p b1"></div><div class="p b2"></div><div class="p pin"></div><div class="p h1"></div><div class="p h2"></div></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function(){
+/* ===================== SEC1 配置区（全部数值集中于此，供数值平衡统一重调） ===================== */
+// 价格曲线生成器：n 级从 c0 几何增长到 cN
+const curve=(c0,cN,n)=>{
+  if(n<=1)return [Math.round(c0)];
+  const g=Math.pow(cN/c0,1/(n-1));
+  const a=Array.from({length:n},(_,i)=>Math.round(c0*Math.pow(g,i)));
+  for(let i=1;i<n;i++)if(a[i]<=a[i-1])a[i]=a[i-1]+1;   // 低端强制严格递增（2026-07-05 体检修正）
+  return a;
+};
+// 六色品质 · 份额制（用户的平分制）：绿份额恒1；其他色解锁后=0.1+浓度等级/满级×0.9 → 满级全员均分
+const SHARE0=0.1;
+const TIERS=[
+  {name:'绿',cls:'t0',v:1,  c:'#7BB661', dye:null},
+  {name:'蓝',cls:'t1',v:3,  c:'#5D8FD6', dye:'blue'},
+  {name:'紫',cls:'t2',v:10, c:'#9D7BC9', dye:'purple'},
+  {name:'黄',cls:'t3',v:35, c:'#E8C25A', dye:'gold'},
+  {name:'橙',cls:'t4',v:120,c:'#E58B4E', dye:'ember'},
+  {name:'彩',cls:'t5',v:500,c:'#B195D6', dye:'rainbow'},
+];
+const BASE_FILL=0.40, LUCK_PER_LV=0.04;            // 幸运纸屑15级 → 出晶率100%
+const FLOOR_RATE=0.15;                              // 每页保底出晶：至少 max(1, ceil(格数×15%)) 颗（2026-07-05 用户定）
+const pageFloor=n=>Math.max(1,Math.ceil(n*FLOOR_RATE));
+const ENV_PAGES=6, ENV_DAILY=10, ENV_MIN=20, ENV_STAY=50, ENV_ITV=360;  // 顺风信（广告位④）：近5页均值×6、每日10封、每6分钟一封、停留50秒（2026-07-05 用户调频）
+const BASE_STEPS=6, STEP_PER_LV=2, DGUM_PER_LV=3;  // 耐久胶水+2/级、双面胶+3/级
+const GLUE_DROP=5;                                  // 风险区每步胶力-5%
+const PAGE_MULT=1.04, PAGE_CAP=150;                 // A3拍板（2026-07-05）：页倍率×1.04，第150页起封顶
+const AUTO_ITV=[3.5,2.8,2.2,1.7,1.2,0.8];
+const TWZ_ITV=[2.6,2.1,1.6,1.2,0.9,0.65,0.45,0.3];            // 自动镊子8级、更快（治"晶体堆着没拿"）
+const REGROW_P=lv=>[0,.18,.3,.42,.54,.66,.78,.88,.95,1,1][lv]||0;  // 补新纸10级（2026-07-05再提高：后期几乎必补，治跟不上消耗）
+const SCRAP_V=lv=>[0,.1,.15,.2,.25,.3,.35,.4,.45][lv]||0;
+const SPECIAL_KINDS=['chaincell','goldcell','capsule','tictac','portal','hoard','kaleido','timecell'];
+const SPECIAL_NAMES={chaincell:'连环格',goldcell:'金边格',capsule:'胶囊格',tictac:'井字格',
+  portal:'传送格',hoard:'聚宝格',kaleido:'万花筒格',timecell:'时光格'};
+const OFFLINE_RATE=lv=>[0,.01,.02,.03,.04][lv]||0;  // 离线装订效率（蚊子腿，2026-07-05：主推在线，离线只给一点）
+const OFFLINE_CAP=lv=>[0,2,4,6,8][lv]||0;           // 离线上限（小时），梦中剪纸每级再+2h
+const SAVE_KEY='scrapbook_save_v3';
+// —— 连击深化 / 流派 / 深潜 常量（2026-07-05 新增6科技用）——
+const COMBO_TIERS=[10,25,50,100];                  // 连击里程碑台阶
+const COMBO_TIER_MULT=[0.03,0.05,0.08,0.12];       // 各台阶叠乘（累乘，满约×1.30）
+const CARRY_RATE=[0,0.2,0.35,0.5];                 // 连击跨页续接：1级20%→3级50%封顶（用户定：最多50%防永动连击）
+const HANDPLAY_MULT=1.6;                            // 赤手空拳：本页零自动化时全局×1.6
+const DEEPDIVE_CAP=0.5;                             // 深潜三叠纸：险区倍率上限每级+0.5（×4→×6）
+const DEEPDIVE_REDZONE=1.25;                        // 深潜：胶力≤30深红区捏晶额外×1.25
+const RISKCOMBO_PER=0.04;                           // 险区连魂：每层险区连击×每级
+const RAINBOWCELL_P=[0,0.15,0.25,0.4];             // 一点成彩：每页出现「彩色格」的概率(按级)
+// —— 数值收口（2026-07-06）：连击/技巧族合并封顶，防尖端玩家多乘区叠乘爆表 ——
+const COMBO_CAP=6;                                  // 好运连连×里程碑×险区连魂×赤手空拳 的合并加成上限（只封极端叠乘，正常手玩<×6不受影响）
+// —— 后期价格加陡（2026-07-06）：中后期科技整体变贵、前期不动（治"活跃玩家太快通树"）——
+// 每级价格按其量级放大：低于100万的不动，之后每高一个数量级×(1+LATE_STEEP)。调它一处即可整体控节奏。
+const LATE_STEEP=0.35;
+
+// —— 69 科技总表（id 与效果一一对应，效果在各系统落地）——
+const TECHS=[
+// 纸页线
+{id:'expand',name:'加大纸页',art:'artPaper',max:60,cost:curve(1,1.2e8,60),
+  desc:'每级固定+4格：1→4→8→…→240（不成矩形时末行不满）',lt:s=>gridCells(s.expand)+'格'},
+{id:'scrap',name:'边角料',art:'artScrap',max:8,cost:curve(60,6e5,8),
+  desc:'空纸片抠下碎屑 0.1→0.45✦（吃倍率）',lt:s=>'+'+SCRAP_V(s.scrap)+'✦'},
+{id:'regrow',name:'补新纸',art:'artTape',max:10,cost:curve(1500,1.5e7,10),
+  desc:'揭空的位置有概率重新贴上新纸片（揭它照样算步），最高 44%',lt:s=>Math.round(REGROW_P(s.regrow)*100)+'%'},
+{id:'recycle',name:'回收桶',art:'artScrap',max:4,cost:curve(5000,4e6,4),
+  desc:'散架时，把损失的 2.5%/级 扫进回收桶直接入册（满级10%）',lt:s=>s.recycle*2.5+'%'},
+{id:'magic',name:'奇纸坊',art:'artTwin',max:8,cost:curve(1e4,1e8,8),
+  desc:'每级：每页特殊格+1个，且解锁新格子（连环→金边→胶囊→井字→传送→聚宝→万花筒→时光）',
+  lt:s=>s.magic?('每页'+s.magic+'个'):'未解锁'},
+{id:'magicplus',name:'连环格强化',art:'artTwin',max:4,cost:curve(8e4,5e7,4),
+  desc:'逐级强化特殊格：1级 胶囊格+1步 → 2级 连环格扩到两圈 → 3级 聚宝格4颗换1档 → 4级 连环格三圈、金边格品质+2档',lt:s=>'Lv'+s.magicplus},
+{id:'bigpic',name:'巨幅插画',art:'artDog',max:3,cost:curve(5e4,1.5e7,3),
+  desc:'每页 1→3 块 2×2 虚线框大纸片：揭它算1步、给4格收益',lt:s=>s.bigpic+'块/页'},
+{id:'frame',name:'插画装裱',art:'artPaper',max:3,cost:curve(5e6,5e7,3),
+  desc:'巨幅插画里开出的晶，收益 +25%/级',lt:s=>'+'+s.frame*25+'%'},
+{id:'goldpage',name:'烫金页',art:'artDye',color:'#C9A227',max:5,cost:curve(5000,8e6,5),
+  desc:'翻页 3%/级 概率进入金页：整页出晶率+25%',lt:s=>s.goldpage*3+'%'},
+{id:'rainbowpage',name:'彩页',art:'artDye',color:'#B0568F',max:3,cost:curve(5e5,6e7,3),
+  desc:'金页有 10%/级 升级成彩页：高品质份额翻倍',lt:s=>s.rainbowpage*10+'%'},
+{id:'bookmark',name:'页脚书签',art:'artDog',max:3,cost:curve(2e4,3e6,3),
+  desc:'自动书签：下一页保底出现 1→3 颗本页最高品质晶',lt:s=>s.bookmark+'颗'},
+// 品质线
+{id:'quality',name:'新纸样',art:'artFan',max:5,cost:curve(40,1.8e8,5),
+  desc:'解锁更高品质纸晶：蓝→紫→黄→橙→彩',lt:s=>'最高'+TIERS[s.quality].name},
+{id:'blue',name:'蓝纸风潮',art:'artDye',color:'#5D8FD6',max:10,cost:curve(100,2e6,10),preq:{id:'quality',lv:1},
+  desc:'平分制：蓝晶份额 0.1→1.0（终与绿平分）',lt:s=>'份额'+(SHARE0+s.blue/10*0.9).toFixed(2)},
+{id:'purple',name:'紫纸雅集',art:'artDye',color:'#9D7BC9',max:10,cost:curve(500,1.5e7,10),preq:{id:'quality',lv:2},
+  desc:'紫晶份额 0.1→1.0（三色均分）',lt:s=>'份额'+(SHARE0+s.purple/10*0.9).toFixed(2)},
+{id:'guarantee',name:'品质保底',art:'artLens',max:4,cost:curve(1e4,2.5e6,4),
+  desc:'每页保底：1蓝+ / 1紫+ / 2紫+ / 1黄+',lt:s=>['无','1蓝+','1紫+','2紫+','1黄+'][s.guarantee]},
+{id:'gold',name:'金纸辉光',art:'artDye',color:'#E8C25A',max:10,cost:curve(3000,8e7,10),preq:{id:'quality',lv:3},
+  desc:'黄晶份额 0.1→1.0（四色均分）',lt:s=>'份额'+(SHARE0+s.gold/10*0.9).toFixed(2)},
+{id:'ember',name:'橙火燎原',art:'artDye',color:'#E58B4E',max:10,cost:curve(2e4,9e8,10),preq:{id:'quality',lv:4},
+  desc:'橙晶份额 0.1→1.0（五色均分）',lt:s=>'份额'+(SHARE0+s.ember/10*0.9).toFixed(2)},
+{id:'rainbow',name:'彩虹涟漪',art:'artDye',color:'#B195D6',max:8,cost:curve(15e4,2.3e9,8),preq:{id:'quality',lv:5},
+  desc:'彩晶份额 0.1→1.0（六色均分16.7%）',lt:s=>'份额'+(SHARE0+s.rainbow/8*0.9).toFixed(2)},
+{id:'rainbowdust',name:'彩虹尘',art:'artDye',color:'#E88A8A',max:3,cost:curve(1e6,1e8,3),
+  desc:'捏彩晶时，全页晾着的晶价值 +10%/级（本页内持续）',lt:s=>'+'+s.rainbowdust*10+'%'},
+{id:'polish',name:'晶体打磨',art:'artJar',max:10,cost:curve(2000,1.2e7,10),
+  desc:'全部纸晶价值 +3%/级',lt:s=>'+'+s.polish*3+'%'},
+{id:'heirloom',name:'传家打磨',art:'artJar',max:50,cost:curve(5e7,3.2e16,50),
+  desc:'无底存钱罐：全部纸晶价值 +2%/级（价格每级×1.5，钱多了永远有去处）',lt:s=>'+'+s.heirloom*2+'%'},
+{id:'gpurify',name:'提纯绿浆',art:'artDye',color:'#7BB661',max:5,cost:curve(5000,2e6,5),
+  desc:'绿晶价值 1 → 2（+0.2/级）',lt:s=>'绿='+(1+s.gpurify*0.2).toFixed(1)},
+{id:'resonance',name:'纸晶共鸣',art:'artJar',max:4,cost:curve(2e4,5e6,4),
+  desc:'同页捏到同色第3颗起，该色收益 +15%+5%/级',lt:s=>'+'+(10+s.resonance*5)+'%'},
+{id:'rareecho',name:'稀有回响',art:'artLens',max:3,cost:curve(1e5,1e7,3),
+  desc:'捏到橙/彩时，本页 1→3 颗未揭的绿晶升为蓝',lt:s=>s.rareecho+'颗'},
+{id:'collect',name:'集晶册',art:'artFan',max:6,cost:curve(5e4,5e7,6),
+  desc:'某色累计捏满1000颗后：该色份额 +3%/级（永久）',lt:s=>'+'+s.collect*3+'%'},
+{id:'interest',name:'纸晶利息',art:'artTape',max:5,cost:curve(1e5,8e7,5),
+  desc:'本页有入册才发利息：收藏册 +0.05%/级（最多不超过本页入册的一半）',lt:s=>'+'+(s.interest*0.05).toFixed(2)+'%'},
+// 运气线
+{id:'luck',name:'幸运纸屑',art:'artJar',max:15,cost:curve(20,8e6,15),
+  desc:'出晶率 40% → 100%（满级每格必有晶）',lt:s=>Math.round(Math.min(1,BASE_FILL+s.luck*LUCK_PER_LV)*100)+'%'},
+{id:'peek',name:'透视纸',art:'artLens',max:5,cost:curve(400,1.2e6,5),
+  desc:'每页金星标记最稀有的 1→5 张',lt:s=>'标'+s.peek+'张'},
+{id:'gates',name:'开门红',art:'artDog',max:5,cost:curve(8000,6e6,5),
+  desc:'前 2+级 步全出晶 → 本页收益 +10%/级',lt:s=>'前'+(2+s.gates)+'步/+'+s.gates*10+'%'},
+{id:'twin',name:'双黄蛋',art:'artTwin',max:6,cost:curve(250,2e6,6),
+  desc:'揭出的晶 3%/级 概率双黄：捏一次算两颗×2',lt:s=>s.twin*3+'%'},
+{id:'tri',name:'三黄蛋',art:'artTwin',max:4,cost:curve(5e4,2.5e7,4),
+  desc:'双黄触发时 10%/级 升级三黄（×3）',lt:s=>s.tri*10+'%'},
+{id:'combo',name:'好运连连',art:'artScrap',max:6,cost:curve(3000,8e6,6),
+  desc:'连击：连续不揭空每层收益+2%，层数上限 5×级',lt:s=>'上限'+s.combo*5+'层'},
+{id:'frenzy',name:'狂热时刻',art:'artScis',max:3,cost:curve(2e5,2e7,3),
+  desc:'连击达20层：10秒内全自动化速度×2（每级+4秒）',lt:s=>s.frenzy?(10+(s.frenzy-1)*4)+'秒':'未解锁'},
+{id:'ribbon',name:'纸屑彩带',art:'artScrap',max:3,cost:curve(3e5,2.5e7,3),
+  desc:'捏彩晶：全屏彩带庆祝 + 免费自动捏起 3×级 颗晾着的晶',lt:s=>'收'+s.ribbon*3+'颗'},
+{id:'ribbonchain',name:'连环彩带',art:'artScrap',max:3,cost:curve(2e6,3e7,3),
+  desc:'彩带免费捏 +2颗/级；捏橙晶也有 25%/级 概率拉一发小彩带（免费收1颗）',lt:s=>'+'+s.ribbonchain*2+'颗'},
+{id:'envelope',name:'幸运信封',art:'artDog',max:3,cost:curve(1e4,1.5e6,3),
+  desc:'每天首次翻页送随机当日增益（出晶率/倍率/安全步，随级增强）',lt:s=>'Lv'+s.envelope},
+{id:'adcopy',name:'高级复写纸',art:'artTape',max:3,cost:curve(5e4,5e6,3),
+  desc:'结算翻倍广告 ×2 → ×2.5',lt:s=>'×'+(2+s.adcopy*0.5/3).toFixed(2)},
+{id:'goldfoil',name:'金箔复写',art:'artTape',max:1,cost:[3e6],
+  desc:'每天第一次用复写纸：翻倍效果再 ×2（×2 变 ×4）',lt:s=>s.goldfoil?'已解锁':'未解锁'},
+{id:'adfree',name:'广告免疫奖',art:'artTape',max:1,cost:[2e6],
+  desc:'连续3天登录：当天首个广告位免看直接领',lt:s=>s.adfree?'已解锁':'未解锁'},
+{id:'afternoon',name:'午后剪纸',art:'artDog',max:2,cost:curve(5e5,4e6,2),
+  desc:'幸运信封的日增益改成自己挑：1级 二选一 → 2级 三选一',lt:s=>s.afternoon?(1+s.afternoon)+'选1':'未解锁'},
+// 技巧线
+{id:'chain',name:'连撕',art:'artTear',max:5,cost:curve(120,6e5,5),
+  desc:'数量制：撕到晶 25% 触发，免费带起附近 1→5 张',lt:s=>'带'+s.chain+'张'},
+{id:'chainchain',name:'连环撕',art:'artTear',max:4,cost:curve(2e4,1.2e7,4),
+  desc:'被带起的纸若出晶，15%/级 继续连撕（链式）',lt:s=>s.chainchain*15+'%'},
+{id:'knife',name:'裁纸刀',art:'artKnife',max:3,cost:curve(800,4e5,3),
+  desc:'免费裁开一整行，每页 1→3 次',lt:s=>'每页'+s.knife+'次'},
+{id:'crosscut',name:'十字刀',art:'artKnife',max:3,cost:curve(6e4,2.5e7,3),
+  desc:'裁纸刀升级十字（行+列）→ 晶最多行优先 → 每页再+1次',lt:s=>'Lv'+s.crosscut},
+{id:'knifeback',name:'回旋裁刀',art:'artKnife',max:2,cost:curve(3e6,2e7,2),
+  desc:'每页前 1→2 次裁刀，裁到的晶当场免费捏进口袋',lt:s=>'前'+s.knifeback+'刀'},
+{id:'dogear',name:'折角标记',art:'artDog',max:5,cost:curve(600,2.5e6,5),
+  desc:'每页开局自动免费揭开 1→5 张',lt:s=>'开局'+s.dogear+'张'},
+{id:'kickoff',name:'起手式',art:'artScis',max:1,cost:[2e4],
+  desc:'每页第一次亲手揭的纸片必有晶（开门永远见喜）',lt:s=>s.kickoff?'已解锁':'未解锁'},
+{id:'fastdraw',name:'快枪手',art:'artScis',max:3,cost:curve(1e4,4e6,3),
+  desc:'犹豫<2秒动手：本页前5步收益 +10%/级',lt:s=>'+'+s.fastdraw*10+'%'},
+{id:'slowwork',name:'慢工细活',art:'artSlow',max:3,cost:curve(1e4,4e6,3),
+  desc:'犹豫≥10秒才动手：本页安全步 +2/级',lt:s=>'+'+s.slowwork*2+'步'},
+{id:'lhand',name:'左手剪刀',art:'artScis',max:3,cost:curve(5000,2.5e6,3),
+  desc:'亲手揭出的晶收益 +5%/级（奖励手玩）',lt:s=>'+'+s.lhand*5+'%'},
+{id:'rhand',name:'右手镊子',art:'artTwz',max:3,cost:curve(5000,2.5e6,3),
+  desc:'亲手捏的晶收益 +5%/级',lt:s=>'+'+s.rhand*5+'%'},
+{id:'retreatart',name:'收手的艺术',art:'artDog',max:3,cost:curve(3e4,1e7,3),
+  desc:'主动收册连续5页：下页收益 ×1.05/级',lt:s=>'×'+(1+s.retreatart*0.05).toFixed(2)},
+{id:'diary',name:'纸匠日志',art:'artPaper',max:1,cost:[8e5],
+  desc:'解锁生涯统计的「详细篇」：最肥一页/最高连击/双黄三黄/悬崖勒马/广告与离线账本',lt:s=>s.diary?'已解锁':'未解锁'},
+// 自动线
+{id:'auto',name:'自动剪刀',art:'artScis',max:6,cost:curve(200,1e6,6),
+  desc:'安全额度内自动揭纸，3.5→0.8秒/张',lt:s=>s.auto?AUTO_ITV[s.auto-1]+'s':'未解锁'},
+{id:'tweezer',name:'自动镊子',art:'artTwz',max:8,cost:curve(350,6e6,8),
+  desc:'自动捏晶（捏也算步），2.6→0.3秒/颗（越高越快、清得动大堆）',lt:s=>s.tweezer?TWZ_ITV[s.tweezer-1]+'s':'未解锁'},
+{id:'smarttwz',name:'智能镊子',art:'artTwz',max:3,cost:curve(3e4,1.5e7,3),
+  desc:'优先捏高价值（彩→绿）；2/3级镊子提速20%/40%',lt:s=>'Lv'+s.smarttwz},
+{id:'smartcut',name:'智能剪刀',art:'artLens',max:3,cost:curve(3e4,1.5e7,3),
+  desc:'自动剪刀优先揭：透视标记 → 特殊格 → 巨幅插画',lt:s=>'Lv'+s.smartcut},
+{id:'twincut',name:'双持剪刀',art:'artScis',max:3,cost:curve(1e5,1.2e7,3),
+  desc:'自动剪刀 30%/级 概率一次揭两张',lt:s=>s.twincut*30+'%'},
+{id:'mechchain',name:'机械连撕',art:'artTear',max:3,cost:curve(8e4,1e7,3),
+  desc:'自动剪刀触发的连撕，带起张数 +1/级',lt:s=>'+'+s.mechchain+'张'},
+{id:'flowlead',name:'流水线督导',art:'artSlow',max:5,cost:curve(5e4,3e7,5),
+  desc:'所有自动化间隔 -8%/级',lt:s=>'-'+s.flowlead*8+'%'},
+{id:'binder',name:'自动装订机',art:'artTape',max:3,cost:curve(1e5,4e7,3),
+  desc:'1级起真挂机：新页自动开工、安全额度用完自动收册翻页 → 2级先捏完再收 → 3级翻页零间隔',lt:s=>'Lv'+s.binder},
+{id:'riskknob',name:'风险旋钮',art:'artSlow',max:5,cost:curve(5e5,1.5e8,5),
+  desc:'解锁左栏旋钮：自动化替你贪到第 1→5 风险步',lt:s=>'可设'+s.riskknob+'步'},
+{id:'smartbind',name:'智能装订+',art:'artLens',max:3,cost:curve(8e5,5e7,3),
+  desc:'本页收益低于近5页均值的 60/75/90% 时提前翻页',lt:s=>'Lv'+s.smartbind},
+{id:'veteran',name:'老装订工',art:'artTape',max:5,cost:curve(2e5,4e7,5),
+  desc:'翻页里程碑：每满100页，全局收益 +2%/级（上限10档）',lt:s=>'+'+s.veteran*2+'%/百页'},
+{id:'offline',name:'离线装订',art:'artTape',max:4,cost:curve(2e5,8e7,4),
+  desc:'离线按在线速率 1%→4% 小额结算，上限 2→8 小时；回来看广告×2（主玩还是在线挂机）',lt:s=>Math.round(OFFLINE_RATE(s.offline)*100)+'%'},
+{id:'dreamcut',name:'梦中剪纸',art:'artSlow',max:3,cost:curve(5e5,3e7,3),
+  desc:'离线时长上限 +2小时/级',lt:s=>'+'+s.dreamcut*2+'h'},
+{id:'morning',name:'早安剪报',art:'artPaper',max:2,cost:curve(2e6,1.2e7,2),
+  desc:'离线超过30分钟回来：接下来 3/6 页收益 ×1.5（回归礼）',lt:s=>'前'+s.morning*3+'页'},
+// 胶水线
+{id:'glue',name:'耐久胶水',art:'artGlue',max:18,cost:curve(30,1.5e7,18),
+  desc:'安全步数 +2/级：6 → 42 步',lt:s=>(BASE_STEPS+s.glue*STEP_PER_LV)+'步'},
+{id:'dgum',name:'双面胶',art:'artGlue',max:14,cost:curve(5e4,4e8,14),
+  desc:'安全步数再 +3/级：42 → 84 步',lt:s=>'+'+s.dgum*DGUM_PER_LV+'步'},
+{id:'droplet',name:'胶水滴',art:'artSlow',max:4,cost:curve(1.5e4,1e7,4),
+  desc:'揭到空纸 5%/级 概率捡到胶水滴：本页安全步 +1',lt:s=>s.droplet*5+'%'},
+{id:'slowdry',name:'缓干胶',art:'artSlow',max:5,cost:curve(150,8e5,5),
+  desc:'风险区前 1→5 步散架概率减半',lt:s=>'前'+s.slowdry+'步'},
+{id:'insure',name:'保险胶带',art:'artTape',max:5,cost:curve(2e4,3e7,5),
+  desc:'散架自动保留已捏收益 6%/级（满级30%）',lt:s=>s.insure*6+'%'},
+{id:'adtape',name:'强力胶带',art:'artTape',max:3,cost:curve(5e4,6e6,3),
+  desc:'散架救回广告额外 +20%/级 收益',lt:s=>'+'+s.adtape*20+'%'},
+{id:'cliff',name:'悬崖勒马',art:'artDog',max:3,cost:curve(1e5,1.5e7,3),
+  desc:'散架判定失败 20% 概率有惊无险，每页 1→3 次',lt:s=>'每页'+s.cliff+'次'},
+{id:'bravado',name:'破釜沉舟',art:'artGlue',max:8,cost:curve(5e4,3e8,8),
+  desc:'风险倍率上限 ×2.0 → ×4.0（+0.25/级）',lt:s=>'上限×'+(2+s.bravado*0.25).toFixed(2)},
+{id:'tiptoe',name:'蹑手蹑脚',art:'artTwz',max:3,cost:curve(2e4,4e6,3),
+  desc:'捏晶那一步的散架概率 ×0.9 → ×0.7',lt:s=>s.tiptoe?'×'+(0.9-(s.tiptoe-1)*0.1).toFixed(1):'未解锁'},
+{id:'breath',name:'深呼吸',art:'artSlow',max:1,cost:[1e6],
+  desc:'每页第一次踏入风险区的那一步必定安全',lt:s=>s.breath?'已解锁':'未解锁'},
+// —— 2026-07-05 用户点单新增 11 科技 ——
+{id:'bigpic9',name:'全景插画',art:'artDog',max:3,cost:curve(2e6,6e7,3),
+  desc:'每页 1→3 块 3×3 大插画：揭它1步、给9格收益',lt:s=>s.bigpic9+'块/页'},
+{id:'autoframe',name:'揭裱直取',art:'artPaper',max:1,cost:[8e6],
+  desc:'插画块揭开即自动收里面的晶（不用再一颗颗捏）',lt:s=>s.autoframe?'已解锁':'未解锁'},
+{id:'timeboost',name:'时光加持',art:'artSlow',max:3,cost:curve(3e6,4e7,3),
+  desc:'时光格/补新纸重贴的空纸，15%/级 概率直接带高2档的晶',lt:s=>s.timeboost*15+'%'},
+// —— 六色分修拆成5个单色精修（2026-07-06 收口#1：治"一个科技同时抬五色·膨胀快"；链式挂品质线gpurify后）——
+{id:'bluepolish',name:'蓝晶精修',art:'artDye',color:'#5D8FD6',max:8,cost:curve(6e5,5e7,8),
+  desc:'蓝晶价值 +4%/级',lt:s=>'+'+s.bluepolish*4+'%'},
+{id:'purplepolish',name:'紫晶精修',art:'artDye',color:'#9D7BC9',max:8,cost:curve(8e5,7e7,8),
+  desc:'紫晶价值 +4%/级',lt:s=>'+'+s.purplepolish*4+'%'},
+{id:'goldpolish',name:'黄晶精修',art:'artDye',color:'#E8C25A',max:8,cost:curve(1e6,9e7,8),
+  desc:'黄晶价值 +4%/级',lt:s=>'+'+s.goldpolish*4+'%'},
+{id:'emberpolish',name:'橙晶精修',art:'artDye',color:'#E58B4E',max:8,cost:curve(1.3e6,1.2e8,8),
+  desc:'橙晶价值 +4%/级',lt:s=>'+'+s.emberpolish*4+'%'},
+{id:'rainbowpolish',name:'彩晶精修',art:'artDye',color:'#B195D6',max:8,cost:curve(1.6e6,1.5e8,8),
+  desc:'彩晶价值 +4%/级',lt:s=>'+'+s.rainbowpolish*4+'%'},
+{id:'echofission',name:'回响裂变',art:'artLens',max:3,cost:curve(2e6,3e7,3),
+  desc:'捏橙/彩时额外：蓝→紫 1→3颗、更多绿→蓝',lt:s=>'Lv'+s.echofission},
+{id:'quickdraw',name:'快刀出鞘',art:'artKnife',max:1,cost:[3e5],
+  desc:'每页第一次亲手揭，自动免费裁开一整行',lt:s=>s.quickdraw?'已解锁':'未解锁'},
+{id:'mechblade',name:'机械开刃',art:'artKnife',max:1,cost:[1.5e6],
+  desc:'自动剪刀每页第一次工作时，也来一记整行裁',lt:s=>s.mechblade?'已解锁':'未解锁'},
+{id:'secondblade',name:'二次开刃',art:'artKnife',max:3,cost:curve(8e5,1.5e7,3),
+  desc:'用完裁纸刀后，下一次揭 15→45% 概率一下揭开 3×3',lt:s=>[0,15,30,45][s.secondblade]+'%'},
+{id:'asteriskcut',name:'米字裁',art:'artKnife',max:1,cost:[4e6],
+  desc:'裁纸刀再加两条对角线（行+列+米字八方向）',lt:s=>s.asteriskcut?'已解锁':'未解锁'},
+{id:'spiralcut',name:'螺旋回形刀',art:'artKnife',max:3,cost:curve(3e6,4e7,3),
+  desc:'裁刀额外在随机处炸开一片（半径 2→4）',lt:s=>'半径'+(1+s.spiralcut)},
+{id:'fullcut',name:'全屏裁',art:'artKnife',max:3,cost:curve(1e7,1.2e8,3),
+  desc:'每次用裁刀，2→6% 概率一刀裁开整页',lt:s=>s.fullcut*2+'%'},
+// —— 2026-07-05 连击深化/流派/深潜 新增6科技 ——
+{id:'combomile',name:'连击里程碑',art:'artScrap',max:4,cost:curve(4e6,4e7,4),
+  desc:'连击跨台阶(10/25/50/100层)全页收益逐档质变（满约×1.30）',lt:s=>s.combomile?('吃到'+COMBO_TIERS[s.combomile-1]+'层'):'未解锁'},
+{id:'combopad',name:'连击护垫',art:'artScrap',max:3,cost:curve(2.5e6,2.2e7,3),
+  desc:'揭到空纸先扣护垫、连击不断（每页回满 1→3 张）；散架仍断',lt:s=>s.combopad+'张'},
+{id:'combocarry',name:'连击不断',art:'artScrap',max:3,cost:curve(2e7,8e7,3),
+  desc:'主动收册翻页保留部分连击（20%→50%封顶）；散架仍清零',lt:s=>Math.round(CARRY_RATE[s.combocarry]*100)+'%'},
+{id:'barehand',name:'赤手空拳',art:'artScis',max:1,cost:[8e6],
+  desc:'本页零自动化（剪刀/镊子/装订都没动手）→ 全页收益 ×1.6',lt:s=>s.barehand?'×1.6':'未解锁'},
+{id:'deepdive',name:'深潜三叠纸',art:'artGlue',max:4,cost:curve(2e7,1.5e9,4),
+  desc:'险区倍率上限 ×4→×6（+0.5/级）；胶力≤30深红区捏晶再 ×1.25',lt:s=>'上限×'+multCap().toFixed(2)},
+{id:'riskcombo',name:'险区连魂',art:'artGlue',max:3,cost:curve(1e6,1.2e8,3),
+  desc:'险区内亲手连捏，每层险区连击每颗 +4%×级（越深越肥）；散架/回安全区清零',lt:s=>'每层+'+(RISKCOMBO_PER*s.riskcombo*100).toFixed(0)+'%'},
+{id:'rainbowcell',name:'一点成彩',art:'artDye',color:'#B195D6',max:3,cost:curve(3e6,2e8,3),
+  desc:'每页概率出现「彩色格」，揭到它 → 全场晾着的纸晶全变彩晶',lt:s=>s.rainbowcell?Math.round(RAINBOWCELL_P[s.rainbowcell]*100)+'%/页':'未解锁'},
+];
+// —— 后期价格加陡（2026-07-06 收口）：每级价格按量级放大，<100万不动、之后每高一个数量级再×(1+LATE_STEEP)。
+//    传家打磨(无底洞)不动。改 LATE_STEEP 一处即可整体控中后期节奏；仍保持每级严格递增。——
+if(LATE_STEEP>0)TECHS.forEach(t=>{ if(t.id==='heirloom')return;
+  t.cost=t.cost.map(c=>{const over=Math.max(0,Math.log10(Math.max(1,c/1e6)));return Math.round(c*(1+over*LATE_STEEP));});
+  for(let i=1;i<t.cost.length;i++)if(t.cost[i]<=t.cost[i-1])t.cost[i]=t.cost[i-1]+1;  // 保严格递增
+});
+const TK={};TECHS.forEach(t=>TK[t.id]=t);
+
+// —— 六枝分叉树（n=科技id，c=子叉；同枝前置=父节点≥1级）——
+const TREE=[
+ {ang:-120,name:'纸页线',node:{n:'expand',c:[
+   {n:'scrap',c:[{n:'regrow',c:[{n:'recycle'}]}]},
+   {n:'magic',c:[{n:'magicplus',c:[{n:'timeboost'}]},{n:'bigpic',c:[{n:'frame'},{n:'autoframe'},{n:'bigpic9'}]}]},
+   {n:'goldpage',c:[{n:'rainbowpage'},{n:'bookmark'}]}]}},
+ {ang:0,name:'品质线',node:{n:'quality',c:[
+   {n:'blue',c:[{n:'purple',c:[{n:'guarantee'}]}]},
+   {n:'gold',c:[{n:'ember',c:[{n:'rainbow',c:[{n:'rainbowdust'},{n:'rainbowcell'}]}]}]},
+   {n:'polish',c:[{n:'gpurify',c:[{n:'bluepolish',c:[{n:'purplepolish',c:[{n:'goldpolish',c:[{n:'emberpolish',c:[{n:'rainbowpolish'}]}]}]}]}]},{n:'resonance',c:[{n:'rareecho',c:[{n:'echofission'}]}]},{n:'heirloom'}]},
+   {n:'collect',c:[{n:'interest'}]}]}},
+ {ang:-60,name:'运气线',node:{n:'luck',c:[
+   {n:'peek',c:[{n:'gates'}]},
+   {n:'twin',c:[{n:'tri'}]},
+   {n:'combo',c:[{n:'combomile'},{n:'combopad',c:[{n:'combocarry'}]},{n:'frenzy'},{n:'ribbon',c:[{n:'ribbonchain'}]}]},
+   {n:'envelope',c:[{n:'adcopy',c:[{n:'goldfoil'}]},{n:'adfree'},{n:'afternoon'}]}]}},
+ {ang:60,name:'技巧线',node:{n:'chain',c:[
+   {n:'chainchain'},
+   {n:'knife',c:[{n:'crosscut',c:[{n:'knifeback',c:[{n:'spiralcut'},{n:'fullcut'}]},{n:'secondblade'},{n:'asteriskcut'}]},{n:'quickdraw',c:[{n:'mechblade'}]}]},
+   {n:'dogear',c:[{n:'fastdraw'},{n:'slowwork'},{n:'kickoff'}]},
+   {n:'lhand',c:[{n:'rhand',c:[{n:'retreatart',c:[{n:'diary'},{n:'barehand'}]}]}]}]}},
+ {ang:120,name:'自动线',node:{n:'auto',c:[
+   {n:'tweezer',c:[{n:'smarttwz'}]},
+   {n:'smartcut',c:[{n:'twincut'},{n:'mechchain'}]},
+   {n:'flowlead',c:[{n:'binder',c:[
+     {n:'riskknob'},
+     {n:'smartbind',c:[{n:'veteran'}]},
+     {n:'offline',c:[{n:'dreamcut'},{n:'morning'}]}]}]}]}},
+ {ang:180,name:'胶水线',node:{n:'glue',c:[
+   {n:'dgum',c:[{n:'droplet'}]},
+   {n:'slowdry',c:[{n:'insure',c:[{n:'adtape'}]},{n:'cliff'}]},
+   {n:'bravado',c:[{n:'tiptoe',c:[{n:'breath'}]},{n:'deepdive',c:[{n:'riskcombo'}]}]}]}},
+];
+// 由树推导父子关系（同枝前置）
+const PARENT={};
+(function walkTree(){TREE.forEach(br=>{(function w(nd,par){
+  PARENT[nd.n]=par;(nd.c||[]).forEach(ch=>w(ch,nd.n));})(br.node,null);});})();
+
+// ===================== 转生系统配置（装订成册 / 典藏卷 / 藏书阁）2026-07-05 =====================
+// 数值全在此，调转生只动这一块 + gemGain 的两行乘区 + doRebirth
+const RB_MIN_PAGE=666, RB_MIN_QUALITY=2;      // 装订门槛：本册翻满666页 且 已解锁到紫纸(quality≥2)（2026-07-05 用户定666）
+const RB_DIV=30;                              // 典藏卷折算除数：越小换得越多
+const spoolGain=pg=>Math.max(1,Math.floor(Math.sqrt(Math.max(0,pg)/RB_DIV)));  // 装订这本换多少典藏卷（按本册翻页平滑折算，越晚越多）
+const RB_START_GOLD=[0,0.12,0.25,0.5];        // 开卷有金：新册开局送的启动✦=近期均值秒率×这个系数×一段(占位口径，doRebirth里落地)
+// 转生专用科技（价格=典藏卷🎗；效果在 gemGain / doRebirth 起步落地）；ang=在藏书阁放射树上的角度
+const RS_TECHS=[
+  {id:'rsIncome', name:'烫金开卷', ic:'✨', ang:-90, max:10, cost:[1,1,2,2,3,4,5,6,8,10],
+    desc:'全局纸晶收益 +4%/级（永久，跨册叠加）', lt:s=>'+'+s.rsIncome*4+'%'},
+  {id:'rsVeteran',name:'老藏家',   ic:'📚', ang:-30, max:5,  cost:[2,3,4,6,8],
+    desc:'每已装订1卷，全局收益再 +1%/级（越转越肥）', lt:s=>'每卷+'+s.rsVeteran+'%'},
+  {id:'rsBinder', name:'熟练装订工',ic:'🔗', ang:30,  max:1,  cost:[3],
+    desc:'新册开局自带装订机Lv1（一转生就真挂机）', lt:s=>s.rsBinder?'已解锁':'未解锁'},
+  {id:'rsColor',  name:'留住颜色',  ic:'🎨', ang:90,  max:1,  cost:[4],
+    desc:'转生保留已解锁的颜色（新册不用重刷绿蓝紫…）', lt:s=>s.rsColor?'已解锁':'未解锁'},
+  {id:'rsExpand', name:'未拆封大页',ic:'📄', ang:150, max:5,  cost:[2,3,4,5,6],
+    desc:'新册开局直接送 1 级「加大纸页」/级（少磨前期）', lt:s=>'+'+s.rsExpand+'级'},
+  {id:'rsStart',  name:'开卷有金',  ic:'💰', ang:210, max:3,  cost:[2,3,5],
+    desc:'新册开局白送一笔启动✦（按近期速率折算）', lt:s=>'Lv'+s.rsStart},
+];
+const RSK={};RS_TECHS.forEach(t=>RSK[t.id]=t);
+/* ===================== SEC2 状态与派生 ===================== */
+const S={};TECHS.forEach(t=>S[t.id]=0);
+const RS={};RS_TECHS.forEach(t=>RS[t.id]=0);   // 转生树等级
+let spool=0,rebirths=0;                          // 典藏卷🎗 / 已装订成册次数
+let state='start';
+let page=1,album=0,haul=0,lastGain=0;
+let cols=1,rows=1,cells=[];
+let steps=0,hasGlue=false,pageStarted=false,firstFlipDone=false;
+let knifeLeft=0,pageBonusSteps=0,firstRiskUsed=false,cliffLeft=0;
+let combo=0,frenzyUntil=0,gatesHit=0,gatesDone=false,gatesBonus=1;
+let padLeft=0,carryCombo=0,riskCombo=0,comboTierShown=0;      // 连击护垫剩余 / 跨页续接暂存 / 险区连击层 / 已放到第几档彩虹带
+let goldPg=false,rainbowPg=false,knobSet=0,bookmarkTier=-1,retreatBoost=1;
+let retreatStreak=0,haulHist=[],pagesTotal=0,colorTotals=[0,0,0,0,0,0];
+let LIFE={reveals:0,picks:0,shatters:0,bestPage:0,pages:0,ads:0,
+  bestCombo:0,cliffSaves:0,twins:0,tris:0,envOpened:0,offGain:0,spent:0,rebirths:0,
+  emptyFlips:0,midnightFlips:0,rainbowCells:0,deepRiskPicks:0,brinkPicks:0,loginBest:0,retreatBest:0};  // 详细篇计数（老档自动补0）
+let achDone={},spoolPeak=0;                                    // 成就：已解锁记录(一次性布尔·绝不掉档) / 典藏卷历史峰值
+let dayBuff=null,lastDay='',loginStreak=0,adFreeDay='';
+let tapId='',tapNick='',tapAvatar='',lastSubmit=0;             // TapTap 登录身份 + 排行榜提交节流
+let doubleUntil=0,dblTimer=null;                              // 看广告·双倍收益（5分钟，可续时/囤时）
+let binderAuto=true;                                          // 自动装订开关（画面左上角，装订机买了后可关）
+let goldfoilDay='',morningLeft=0;                              // 金箔复写（每日首印）/ 早安剪报（剩余×1.5页数）
+let envDay='',envUsed=0,envHideT=0;                            // 顺风信（广告位④）
+let fxOn=true;                                                 // 特效动画开关（收纳飞行+纸屑粒子；手工台底部可切）
+let lastTs=0,offRate=0,pendingOffline=0,offlineSec=0;
+let pageStat={counts:[0,0,0,0,0,0],readyAt:0,firstAt:0,report:''};
+let craftOpen=false,selTool=null,craftReturnToNewPage=false,craftReturnToSettle=false;
+
+// —— 派生：格子 / 步数 / 胶力 / 倍率 ——
+function gridCells(lv){return lv===0?1:4*lv;}                 // 每级固定+4格
+const safeSteps=()=>BASE_STEPS+S.glue*STEP_PER_LV+S.dgum*DGUM_PER_LV+pageBonusSteps
+  +(dayBuff&&dayBuff.t==='step'?dayBuff.v:0);
+const glueAt=n=>Math.max(0,100-Math.max(0,n-safeSteps())*GLUE_DROP);
+const curGlue=()=>(!hasGlue||!pageStarted)?100:glueAt(steps);
+const nextGlue=()=>!hasGlue?100:glueAt(steps+1);
+const multCap=()=>2+S.bravado*0.25+DEEPDIVE_CAP*S.deepdive;   // 破釜沉舟×2→×4 + 深潜三叠纸再+0.5/级(→×6)
+const curMult=()=>{const g=curGlue();return 1+(100-g)/100*(multCap()-1);};
+const pageMult=()=>Math.pow(PAGE_MULT,Math.min(page,PAGE_CAP)-1)*retreatBoost*gatesBonus
+  *(1+0.02*S.veteran*Math.min(10,Math.floor(pagesTotal/100)))   // 老装订工
+  *(morningLeft>0?1.5:1)                                         // 早安剪报（离线回归礼）
+  *(dayBuff&&dayBuff.t==='mult'?(dayBuff.v||1.1):1);             // 幸运信封·倍率日（随级增强）
+// —— 份额制概率（用户平分制）：绿=1；其他色解锁后 0.1→1.0 ——
+function shareOf(i){
+  if(i===0)return 1*(colorTotals[0]>=1000?1+0.03*S.collect:1);
+  if(S.quality<i)return 0;
+  const t=TIERS[i],lv=S[t.dye],max=TK[t.dye].max;
+  let sh=SHARE0+lv/max*(1-SHARE0);
+  if(rainbowPg&&i>0)sh*=2;                                     // 彩页：高品质份额翻倍
+  if(colorTotals[i]>=1000)sh*=1+0.03*S.collect;                // 集晶册
+  return sh;
+}
+const fillRate=()=>Math.min(1,BASE_FILL+S.luck*LUCK_PER_LV
+  +(goldPg?0.25:0)+(dayBuff&&dayBuff.t==='fill'?(dayBuff.v||0.05):0));
+// —— 连击里程碑：跨过的台阶累乘（纯查表，供gemGain调用）——
+function comboTierMult(c){let m=1;for(let i=0;i<S.combomile;i++)if(c>=COMBO_TIERS[i])m*=1+COMBO_TIER_MULT[i];return m;}
+// —— 单颗收益（乘区集中，供数值平衡审计）——
+function gemGain(tier,opt){
+  opt=opt||{};
+  let v=TIERS[tier].v;
+  if(tier===0)v=1+S.gpurify*0.2;                               // 提纯绿浆
+  let m=curMult()*pageMult();
+  m*=1+S.polish*0.03;                                          // 晶体打磨
+  if(S.heirloom)m*=1+S.heirloom*0.02;                          // 传家打磨（无底存钱罐）
+  if(RS.rsIncome)m*=1+0.04*RS.rsIncome;                        // 转生·烫金开卷（全局永久加成）
+  if(RS.rsVeteran&&rebirths)m*=1+0.01*RS.rsVeteran*rebirths;   // 转生·老藏家（每已装订1卷再加）
+  if(opt.framed&&S.frame)m*=1+S.frame*0.25;                    // 插画装裱（巨幅插画里的晶）
+  if(tier>=1){const cp=S[TIERS[tier].dye+'polish']||0;if(cp)m*=1+cp*0.04;} // 六色分修（拆5单色：蓝紫黄橙彩各管一色）
+  if(Date.now()<doubleUntil)m*=2;                              // 看广告·双倍收益（5分钟内，本页+挂机都翻倍）
+  if(pageStat.counts[tier]>=2&&S.resonance)m*=1+(0.10+S.resonance*0.05); // 纸晶共鸣(第3颗起)
+  // —— 连击/技巧族：合并成 cb 后封顶 COMBO_CAP（2026-07-06 收口·防尖端玩家多乘区叠乘爆表）——
+  let cb=1;
+  if(combo>0&&S.combo)cb*=1+0.02*Math.min(combo,S.combo*5);     // 好运连连
+  if(S.combomile)cb*=comboTierMult(combo);                     // 连击里程碑（跨台阶逐档质变）
+  if(opt.manualPick&&S.riskcombo&&riskCombo>0)cb*=1+RISKCOMBO_PER*riskCombo*S.riskcombo; // 险区连魂（亲手深潜连捏）
+  if(S.barehand&&!pageStat.autoTouched)cb*=HANDPLAY_MULT;       // 赤手空拳（本页零自动化）
+  m*=Math.min(cb,COMBO_CAP);                                    // ★合并封顶：正常手玩<×6不受影响，只削病态叠乘
+  if(S.deepdive&&curGlue()<=30)m*=DEEPDIVE_REDZONE;            // 深潜三叠纸·深红区加成（风险系统、不进封顶）
+  if(opt.manualCut&&S.lhand)m*=1+S.lhand*0.05;                 // 左手剪刀（亲手揭出的晶）
+  if(opt.manualPick&&S.rhand)m*=1+S.rhand*0.05;                // 右手镊子
+  if(pageStat.fast&&steps<=5&&S.fastdraw)m*=1+S.fastdraw*0.10; // 快枪手（前5步）
+  if(pageStat.dustOn&&S.rainbowdust)m*=1+S.rainbowdust*0.10;   // 彩虹尘（本页触发后）
+  return v*m;
+}
+// —— 掷骰（揭/捏共用）：缓干胶/蹑手蹑脚/深呼吸/悬崖勒马全在这落地 ——
+function rollStep(isPick){
+  const g=nextGlue();
+  if(g<100){
+    let p=100-g;
+    const over=steps+1-safeSteps();
+    if(over>0&&over<=S.slowdry)p/=2;                           // 缓干胶
+    if(isPick&&S.tiptoe)p*=(0.9-(S.tiptoe-1)*0.1);             // 蹑手蹑脚
+    if(S.breath&&!firstRiskUsed){firstRiskUsed=true;p=0;}      // 深呼吸：首险步必安全
+    if(Math.random()*100<p){
+      if(cliffLeft>0&&Math.random()<0.2){cliffLeft--;          // 悬崖勒马：20%有惊无险
+        LIFE.cliffSaves++;
+        setTipOnce('<b>有惊无险！</b>悬崖勒马救了你一次');}
+      else{shatter();return false;}
+    }
+  }
+  steps++;
+  return true;
+}
+// —— 存档 v3（含 v2 迁移）——
+function save(){
+  try{
+    // 离线速率：取近5页平均"每秒入册"（供离线装订结算）
+    localStorage.setItem(SAVE_KEY,JSON.stringify({v:3,S,RS,spool,rebirths,album,page,pagesTotal,colorTotals,
+      LIFE,achDone,spoolPeak,retreatStreak,lastDay,loginStreak,adFreeDay,dayBuff,offRate,
+      goldfoilDay,morningLeft,envDay,envUsed,fxOn,sfxOn,bgmOn,binderAuto,knobSet,tapId,tapNick,tapAvatar,doubleUntil,ts:Date.now()}));
+  }catch(e){}
+}
+function load(){
+  try{
+    let d=JSON.parse(localStorage.getItem(SAVE_KEY));
+    if(!d){ // v2 旧档迁移：科技等级/收藏册/页码原样保留
+      const old=JSON.parse(localStorage.getItem('scrapbook_save_v2'));
+      if(old&&old.v===2){d={v:3,S:old.S,album:old.album,page:old.page};
+        localStorage.removeItem('scrapbook_save_v2');}
+    }
+    if(d&&d.v===3||d&&d.S){
+      Object.keys(S).forEach(k=>{if(d.S&&typeof d.S[k]==='number')S[k]=d.S[k];});
+      Object.keys(RS).forEach(k=>{if(d.RS&&typeof d.RS[k]==='number')RS[k]=d.RS[k];});  // 转生树等级（老档默认0）
+      spool=d.spool|0;rebirths=d.rebirths|0;                   // 典藏卷 / 转生次数
+      album=d.album|0;page=Math.max(1,d.page|0);
+      pagesTotal=d.pagesTotal|0;
+      if(Array.isArray(d.colorTotals))colorTotals=d.colorTotals;
+      if(d.LIFE)LIFE=Object.assign(LIFE,d.LIFE);
+      if(d.achDone&&typeof d.achDone==='object')achDone=d.achDone;  // 成就已解锁(老档默认空、绝不掉档)
+      spoolPeak=Math.max(d.spoolPeak|0,spool);
+      retreatStreak=d.retreatStreak|0;lastDay=d.lastDay||'';
+      loginStreak=d.loginStreak|0;adFreeDay=d.adFreeDay||'';
+      dayBuff=d.dayBuff||null;offRate=d.offRate||0;lastTs=d.ts||0;
+      goldfoilDay=d.goldfoilDay||'';morningLeft=d.morningLeft|0;
+      envDay=d.envDay||'';envUsed=d.envUsed|0;
+      fxOn=d.fxOn!==false;                                     // 特效开关（老档默认开）
+      sfxOn=d.sfxOn!==false;bgmOn=d.bgmOn!==false;             // 音效/背景音乐开关（老档默认开）
+      tapId=d.tapId||'';tapNick=d.tapNick||'';tapAvatar=d.tapAvatar||'';  // TapTap 登录身份
+      doubleUntil=d.doubleUntil||0;                            // 双倍收益剩余时间（重开仍延续）
+      binderAuto=d.binderAuto!==false;                         // 自动装订开关（老档默认开）
+      knobSet=d.knobSet|0;                                     // 风险旋钮档位（重开延续，老档默认0）
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+function wipe(){try{localStorage.removeItem(SAVE_KEY);localStorage.removeItem('scrapbook_save_v2');}catch(e){}}
+// —— 离线装订：load 后调用，算出待发收益 ——
+function calcOffline(){
+  pendingOffline=0;
+  if(!S.offline||!lastTs||!offRate)return;
+  offlineSec=Math.max(0,(Date.now()-lastTs)/1000-90);          // 90秒内不算离线
+  const capSec=(OFFLINE_CAP(S.offline)+S.dreamcut*2)*3600;     // 梦中剪纸加时
+  offlineSec=Math.min(offlineSec,capSec);
+  if(offlineSec<60)return;
+  pendingOffline=Math.ceil(offlineSec*offRate*OFFLINE_RATE(S.offline));
+}
+// —— 幸运信封：每天首翻触发 ——
+function checkEnvelope(){
+  if(!S.envelope)return;
+  const today=new Date().toDateString();
+  if(lastDay===today)return;
+  // 连续登录统计（广告免疫奖用）
+  const yest=new Date(Date.now()-864e5).toDateString();
+  loginStreak=(lastDay===yest)?loginStreak+1:1;
+  lastDay=today;
+  const kinds=[                                                // 三种日增益都随信封等级增强
+    {t:'fill',v:0.03+0.02*S.envelope,txt:'今日出晶率 +'+(3+2*S.envelope)+'%'},
+    {t:'mult',v:1.05+0.05*S.envelope,txt:'今日收益 ×'+(1.05+0.05*S.envelope).toFixed(2)},
+    {t:'step',v:2+S.envelope,txt:'今日安全步 +'+(2+S.envelope)},
+  ];
+  if(S.afternoon){                                             // 午后剪纸：日增益自己挑（1级二选一/2级三选一）
+    const opts=shuffle(kinds).slice(0,Math.min(3,1+S.afternoon));
+    $('pickBtns').innerHTML='';
+    opts.forEach(k=>{
+      const b=document.createElement('button');
+      b.className='pbtn btn-main';b.textContent='🧧 '+k.txt;
+      b.onclick=()=>{dayBuff=k;hide();toast('🧧 已选：'+k.txt);save();updateHUD();};
+      $('pickBtns').appendChild(b);
+    });
+    show('ovPick');
+  }else{
+    dayBuff=kinds[Math.random()*kinds.length|0];
+    toast('🧧 幸运信封：'+dayBuff.txt);
+  }
+  save();
+}
+
+/* ===================== 通用工具（稳定层） ===================== */
+const $=id=>document.getElementById(id);
+const grid=$('grid'), area=$('pageArea'), fx=$('fx');
+const fmt=n=>n>=1e9?((n/1e9).toFixed(2).replace(/\.?0+$/,'')+'B')
+  :n>=1e6?((n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M')
+  :n>=1e5?((n/1e3).toFixed(0)+'k')
+  :n>=1e4?((n/1e3).toFixed(1)+'k'):(''+Math.round(n));
+const fmtF=n=>{
+  if(n>=10000)return fmt(Math.round(n));
+  const r=Math.round(n*10)/10;
+  return r%1===0?(''+r):r.toFixed(1);
+};
+let ac=null,sfxOn=true,bgmOn=true;
+/* 音频上下文：懒建 + 每次用时若被系统挂起就自动唤醒——这是"看广告/切页后声音没了"的根治点 */
+const AC=()=>{
+  if(!ac){try{ac=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+  if(ac&&ac.state==='suspended'){try{ac.resume();}catch(e){}}
+  return ac;
+};
+function tone(f,d,type,g){const a=AC();if(!a||!sfxOn)return;const o=a.createOscillator(),n=a.createGain();
+  o.type=type||'sine';o.frequency.value=f;n.gain.value=g||0.05;o.connect(n);n.connect(a.destination);
+  const c=a.currentTime;o.start(c);n.gain.exponentialRampToValueAtTime(0.0001,c+d);o.stop(c+d);}
+function rip(d,g){const a=AC();if(!a||!sfxOn)return;
+  const len=Math.floor(a.sampleRate*d),buf=a.createBuffer(1,len,a.sampleRate),ch=buf.getChannelData(0);
+  for(let i=0;i<len;i++)ch[i]=(Math.random()*2-1)*(1-i/len);
+  const src=a.createBufferSource();src.buffer=buf;
+  const n=a.createGain();n.gain.value=g||0.07;src.connect(n);n.connect(a.destination);src.start();}
+/* 啪：清脆的捏起音（音调快速下滑 + 一记噪声瞬态，就是那"啪"的爽感） */
+function pop(f,g){const a=AC();if(!a||!sfxOn)return;const t=a.currentTime;
+  const o=a.createOscillator(),n=a.createGain();
+  o.type='triangle';o.frequency.setValueAtTime(f,t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(70,f*0.55),t+0.07);
+  n.gain.setValueAtTime(g||0.07,t);n.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
+  o.connect(n);n.connect(a.destination);o.start(t);o.stop(t+0.1);
+  const len=Math.floor(a.sampleRate*0.02),buf=a.createBuffer(1,len,a.sampleRate),ch=buf.getChannelData(0);
+  for(let i=0;i<len;i++)ch[i]=(Math.random()*2-1)*(1-i/len);
+  const src=a.createBufferSource();src.buffer=buf;
+  const nn=a.createGain();nn.gain.value=0.05;src.connect(nn);nn.connect(a.destination);src.start(t);}
+const sfxGem=q=>{tone(430+q*90,.09,'triangle',.05);if(q>=2)setTimeout(()=>tone(720+q*110,.12,'triangle',.045),60);};
+const sfxPick=q=>{pop(520+q*80,.075);};                        // 捏晶=脆脆的"啪"，越高品质越亮
+const sfxScatter=()=>{rip(.3,.1);tone(90,.4,'sawtooth',.06);};
+const sfxCollect=()=>{tone(520,.1,'sine',.05);setTimeout(()=>tone(780,.15,'sine',.045),90);};
+/* 背景音乐：纯代码生成的柔和音乐盒（小调五声、稀疏留白、极轻音量），非逐帧、可开关、随音频挂起自动跳过 */
+let bgmTimer=null;
+const BGM_SEMI=[0,2,4,7,9,12,14,16];                          // 大调五声（明亮欢快）
+let bgmIdx=2;
+function bgmNote(){
+  const a=AC();if(!a||!bgmOn||a.state==='suspended')return;
+  if(Math.random()<0.12)return;                               // 少留白，更连贯轻快
+  bgmIdx=Math.max(0,Math.min(BGM_SEMI.length-1,bgmIdx+((Math.random()*3|0)-1)));  // 小幅游走=像旋律不乱跳
+  const f=262*Math.pow(2,BGM_SEMI[bgmIdx]/12);                // C4 根，明亮
+  const t=a.currentTime,o=a.createOscillator(),n=a.createGain();
+  o.type='triangle';o.frequency.value=f;                     // 三角波=清亮活泼
+  n.gain.setValueAtTime(0.0001,t);
+  n.gain.exponentialRampToValueAtTime(0.03,t+0.03);          // 快起（拨弦/音乐盒的"叮"）
+  n.gain.exponentialRampToValueAtTime(0.0001,t+0.5);         // 短收（俏皮不拖沓）
+  o.connect(n);n.connect(a.destination);o.start(t);o.stop(t+0.55);
+}
+function startBGM(){if(bgmTimer||!bgmOn)return;bgmTimer=setInterval(bgmNote,480);}  // 更快=更欢快
+function stopBGM(){if(bgmTimer){clearInterval(bgmTimer);bgmTimer=null;}}
+/* 声音全程不掉：切后台停BGM、回前台唤醒；任意点击都唤醒被系统挂起的音频 */
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopBGM();else{AC();if(bgmOn)startBGM();}});
+window.addEventListener('pointerdown',()=>{AC();},{passive:true});
+/* 纸屑/彩带：预制CSS动画版（2026-07-05 用户定"一律预制、不实时渲染"）
+   ——每颗纸屑=一个小div，起终点写进CSS变量，浏览器显卡自己播完自动删；
+   全游戏从此零画布、零逐帧循环。同屏纸屑上限60，超出的直接不生成 */
+let liveBits=0;
+// 连击爆彩·彩虹带（累积式·平面2D预制CSS·零逐帧；受特效开关fxOn）2026-07-05
+const BAND_CFG=[                                    // h=带子厚度，改成【容器高度的百分比】→ 随屏幕比例缩放(矮屏自动变薄、多条才分得开)
+  {ang:-18,top:40,h:15,dur:2.0,delay:0},           // ①主斜带（每档都有）宽×1.5
+  {ang:24, top:23,h:13,dur:2.1,delay:.12,rev:1},   // ②反方向斜带
+  {ang:-40,top:64,h:14,dur:2.0,delay:.24},         // ③更陡斜带
+  {ang:9,  top:52,h:16,dur:2.2,delay:.34,rev:1},   // ④缓斜带
+  {ang:42, top:80,h:12,dur:2.1,delay:.46},         // ⑤大角度斜带
+];
+const BAND_COUNT=[1,2,3,5];                        // 连击第1/2/3/4档 → 累积几条
+function comboBands(n){
+  if(!fxOn)return;                                 // 特效开关关闭时不放（低端机兜底）
+  const host=$('bandFx');if(!host)return;
+  host.innerHTML='';                               // 清掉上一波，避免叠积
+  BAND_CFG.slice(0,n).forEach(c=>{
+    const b=document.createElement('div');b.className='cband'+(c.rev?' rev':'');
+    b.innerHTML='<i></i>';
+    b.style.setProperty('--ang',c.ang+'deg');b.style.top=c.top+'%';b.style.setProperty('--h',c.h+'%');  // 厚度用%随容器高缩放
+    b.style.setProperty('--dur',c.dur+'s');b.style.setProperty('--delay',c.delay+'s');
+    host.appendChild(b);setTimeout(()=>b.remove(),(c.dur+c.delay)*1000+150);
+  });
+}
+// 连击里程碑：连击"够了就放"彩虹带（不靠正好等于，免得被免费收跳过；免费收路径也会调）2026-07-05
+function checkComboTier(){
+  if(!S.combomile)return;
+  let hit=-1;
+  for(let i=comboTierShown;i<S.combomile&&i<COMBO_TIERS.length;i++){
+    if(combo>=COMBO_TIERS[i]){comboTierShown=i+1;hit=i;} else break;
+  }
+  if(hit>=0){toast('🎉 连击 '+COMBO_TIERS[hit]+' 层！全页收益再涨一档');comboBands(BAND_COUNT[hit]);}
+}
+// 一点成彩：全场晾着的纸晶 → 彩晶（改tier+改.gem外观；彩带庆祝复用现成预制）2026-07-05
+function turnAllRainbow(){
+  LIFE.rainbowCells=(LIFE.rainbowCells||0)+1;                  // 成就:一点成彩触发
+  const tier=Math.min(5,S.quality);
+  const gems=cells.filter(c=>c.classList.contains('hasgem'));
+  gems.forEach(c=>{
+    c.dataset.tier=tier;c.dataset.roll=tier;
+    const g=c.querySelector('.gem');if(g)g.className='gem wait '+TIERS[tier].cls;
+  });
+  if(fxOn)ribbonBurst();
+  toast('🌈 一点成彩！全场 '+gems.length+' 颗纸晶都变成彩晶了');
+  updateHUD();
+}
+function confetti(x,y,color,n,big){
+  if(!fxOn)return;                                             // 特效开关：粒子整体可关
+  n=Math.min(n,Math.max(0,60-liveBits));
+  for(let i=0;i<n;i++){
+    const b=document.createElement('div');b.className='fxbit';
+    const a=Math.random()*6.28,d=(big?74:46)*(0.4+Math.random());
+    b.style.cssText='left:'+x+'px;top:'+y+'px;'
+      +'width:'+(big?5:4)+'px;height:'+(big?3:2.5)+'px;'
+      +'background:'+(Math.random()<.3?'#FBF6EA':color)+';'
+      +'--bx:'+(Math.cos(a)*d).toFixed(1)+'px;'
+      +'--by:'+(Math.sin(a)*d*0.6+42+Math.random()*46).toFixed(1)+'px;'
+      +'--br:'+((Math.random()*260-130)|0)+'deg;';
+    fx.appendChild(b);liveBits++;
+    setTimeout(()=>{b.remove();liveBits--;},820);
+  }
+}
+function ribbonBurst(){ // 全屏彩带（纸屑彩带科技）：长条纸带 + 大量彩屑
+  if(!fxOn)return;                                             // 特效开关：粒子整体可关
+  const r=area.getBoundingClientRect();
+  const cols=['#E88A8A','#EBC868','#92C97E','#7BA6DE','#B195D6'];
+  const n=Math.min(36,Math.max(0,60-liveBits));
+  for(let i=0;i<n;i++){
+    const b=document.createElement('div');b.className='fxrib';
+    b.style.cssText='left:'+(Math.random()*r.width).toFixed(0)+'px;'
+      +'width:'+(3+Math.random()*3).toFixed(1)+'px;height:'+(10+Math.random()*10).toFixed(0)+'px;'
+      +'background:'+cols[i%cols.length]+';'
+      +'--fall:'+(r.height*0.92+Math.random()*40).toFixed(0)+'px;'
+      +'--r0:'+((Math.random()*360)|0)+'deg;--br:'+((180+Math.random()*300)|0)+'deg;'
+      +'--dur:'+(1.3+Math.random()*0.7).toFixed(2)+'s;';
+    fx.appendChild(b);liveBits++;
+    setTimeout(()=>{b.remove();liveBits--;},2100);
+  }
+}
+function cellCenter(el){const c=el.getBoundingClientRect(),w=area.getBoundingClientRect();
+  return [c.left-w.left+c.width/2,c.top-w.top+c.height/2];}
+function floatText(el,txt,color){
+  const [x,y]=cellCenter(el);
+  const f=document.createElement('div');f.className='float';f.textContent=txt;
+  f.style.left=x+'px';f.style.top=y+'px';f.style.color=color;
+  area.appendChild(f);setTimeout(()=>f.remove(),880);
+}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.remove('show');void t.offsetWidth;t.classList.add('show');}
+/* 收纳动画（方案A）：捏起的晶沿弧线飞向左栏"本页已捏"。
+   外层元素只管横向（线性）、内层只管纵向（先坠后升的缓动）→ 叠出弧线；
+   全程是一次性CSS位移（合成层搬运，不逐帧重画），同屏限流6颗，特效开关可整体关闭 */
+let flyN=0;
+function flyGem(el,tier){
+  const box=$('haulBox');
+  const bump=()=>{box.classList.remove('bump');void box.offsetWidth;box.classList.add('bump');};
+  if(!fxOn){bump();return;}                                    // 特效关：不飞，卡片轻弹一下示意
+  if(flyN>=6){bump();return;}                                  // 限流：自动化高速时超出的直接入账
+  flyN++;
+  const fr=el.getBoundingClientRect(),to=box.getBoundingClientRect();
+  const ox=document.createElement('div');ox.className='flyx';
+  const oy=document.createElement('div');oy.className='flyy';
+  oy.style.background='linear-gradient(90deg,'+TIERS[tier].c+' 50%,rgba(0,0,0,.18) 50%),'+TIERS[tier].c;
+  ox.appendChild(oy);document.body.appendChild(ox);
+  ox.style.transform='translateX('+(fr.left+fr.width/2)+'px)';
+  oy.style.transform='translateY('+(fr.top+fr.height/2)+'px)';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    ox.style.transform='translateX('+(to.left+to.width/2)+'px)';
+    oy.style.transform='translateY('+(to.top+to.height/2)+'px) scale(.5)';
+  }));
+  setTimeout(()=>{ox.remove();flyN--;bump();},560);
+}
+
+/* ===================== SEC3 翻页系统 ===================== */
+function rollTier(){                                           // ②份额制稀有度（保底补晶也走这套，品质分布不变形）
+  let sum=0;const sh=[];
+  for(let i=0;i<TIERS.length;i++){sh[i]=shareOf(i);sum+=sh[i];}
+  let r=Math.random()*sum;
+  for(let i=0;i<TIERS.length;i++){r-=sh[i];if(r<=0)return i;}
+  return 0;
+}
+function rollGem(){
+  if(Math.random()>fillRate())return -1;                       // ①出晶率（幸运纸屑/金页/信封）
+  return rollTier();
+}
+function regrowRoll(){                                          // 补新纸/时光格重贴：时光加持有概率带高2档
+  const r=rollGem();
+  if(r>=0&&S.timeboost&&Math.random()<S.timeboost*0.15)return Math.min(Math.min(5,S.quality),r+2);
+  return r;
+}
+function applyPeek(){
+  cells.forEach(c=>c.classList.remove('peek'));
+  if(!S.peek)return;
+  cells.filter(c=>c.classList.contains('covered')&&+c.dataset.roll>=0)
+    .sort((a,b)=>+b.dataset.roll-+a.dataset.roll)
+    .slice(0,S.peek)
+    .forEach(c=>c.classList.add('peek'));
+}
+function layoutGrid(){
+  const r=area.getBoundingClientRect();
+  if(!r.width)return;
+  const n=cells.length||1;
+  const gap=Math.max(4,Math.min(8,r.width*0.009));
+  const availW=r.width*0.9, availH=r.height*0.86;             // 用更多屏幕（治宽屏两侧大留白，2026-07-05）
+  // 列数随屏幕宽高比自适应：宽屏→更多列、更宽的格阵铺满；末行不满自动
+  cols=Math.min(24,Math.max(1,Math.round(Math.sqrt(n*availW/availH))));
+  rows=Math.ceil(n/cols);
+  // 摄像机感（2026-07-05 用户定）：格子少=镜头凑近（格子大），随扩页越拉越远
+  // 1格≈24.5%屏高、4格≈22%、8格≈20%、16格≈17%、36格≈12%，之后由"装得下"约束接管
+  const zoomCap=r.height*Math.max(0.11,0.27-0.025*Math.sqrt(n));
+  const size=Math.min(Math.max(26,zoomCap),
+    Math.floor((availW-(cols-1)*gap)/cols),Math.floor((availH-(rows-1)*gap)/rows));
+  grid.style.gap=gap+'px';
+  grid.style.gridTemplateColumns='repeat('+cols+','+size+'px)';
+  grid.style.gridAutoRows=size+'px';
+  cells.forEach((c,i)=>{c.dataset.x=i%cols;c.dataset.y=(i/cols)|0;});
+}
+function newPage(){
+  const n=gridCells(S.expand);
+  // 页面属性
+  goldPg=Math.random()<S.goldpage*0.03;
+  rainbowPg=goldPg&&Math.random()<S.rainbowpage*0.10;
+  grid.classList.toggle('goldpg',goldPg&&!rainbowPg);
+  grid.classList.toggle('rainbowpg',rainbowPg);
+  // 本页临时状态
+  steps=0;pageStarted=false;pageBonusSteps=0;firstRiskUsed=false;
+  cliffLeft=S.cliff;combo=carryCombo;carryCombo=0;comboTierShown=0;padLeft=S.combopad;riskCombo=0;  // 连击续接/里程碑重放/护垫回满/险区连魂清零
+  gatesHit=0;gatesDone=false;gatesBonus=1;
+  hasGlue=S.expand>=1;haul=0;
+  knifeLeft=S.knife+(S.crosscut>=3?1:0);                       // 十字刀Lv3：每页+1次
+  retreatBoost=retreatStreak>=5?(1+0.05*S.retreatart):1;       // 收手的艺术
+  pageStat={counts:[0,0,0,0,0,0],readyAt:Date.now(),firstAt:0,report:'',fast:false,dustOn:false,autoTouched:false};
+  checkEnvelope();                                             // 幸运信封（每天首翻）
+  // 建格 + 预生成内容
+  grid.innerHTML='';cells=[];
+  for(let i=0;i<n;i++){
+    const d=document.createElement('div');
+    d.className='cell covered';
+    d.addEventListener('pointerdown',()=>onCell(d,true));
+    grid.appendChild(d);cells.push(d);
+  }
+  cells.forEach(c=>{c.dataset.roll=(page===1&&!firstFlipDone)?0:rollGem();});
+  // 每页保底出晶（2026-07-05 用户定）：至少 pageFloor(n) 颗，先天全空的页强制补上
+  const gemN=cells.filter(c=>+c.dataset.roll>=0).length,lack=pageFloor(n)-gemN;
+  if(lack>0)shuffle(cells.filter(c=>+c.dataset.roll<0)).slice(0,lack)
+    .forEach(c=>c.dataset.roll=rollTier());
+  // 页脚书签：下页保底 N 颗本页最高品质
+  if(bookmarkTier>=0&&S.bookmark){
+    shuffle(cells).slice(0,S.bookmark).forEach(c=>c.dataset.roll=bookmarkTier);
+    bookmarkTier=-1;
+  }
+  // 品质保底：不足则把随机格升到要求档
+  if(S.guarantee){
+    const req=[[1,1],[2,1],[2,2],[3,1]][S.guarantee-1];        // [最低tier,颗数]
+    const have=cells.filter(c=>+c.dataset.roll>=req[0]).length;
+    if(have<req[1]&&S.quality>=req[0]){
+      shuffle(cells.filter(c=>+c.dataset.roll<req[0])).slice(0,req[1]-have)
+        .forEach(c=>c.dataset.roll=req[0]);
+    }
+  }
+  // 特殊格子：奇纸坊等级=每页数量，种类按级解锁；传送格成对铺（否则没有"另一端"）
+  if(S.magic&&n>=4){
+    const kinds=SPECIAL_KINDS.slice(0,S.magic);
+    const mark=(c,k)=>{
+      c.dataset.sp=k;c.classList.add('spmark','sp-'+k);
+      if(k==='goldcell'){                                      // 金边格：必出晶且品质+1档（强化4级+2档）
+        let t=+c.dataset.roll;if(t<0)t=0;
+        c.dataset.roll=Math.min(Math.min(5,S.quality),t+(S.magicplus>=4?2:1));
+      }
+    };
+    const slots=shuffle(cells).slice(0,Math.min(S.magic,n));
+    for(let i=0;i<slots.length;i++){
+      let k=kinds[Math.random()*kinds.length|0];
+      if(k==='portal'){
+        if(i+1<slots.length){mark(slots[i],'portal');mark(slots[i+1],'portal');i++;continue;}
+        const nk=kinds.filter(x=>x!=='portal');                // 剩最后一格配不成对 → 换别的格子
+        k=nk[Math.random()*nk.length|0];
+      }
+      mark(slots[i],k);
+    }
+  }
+  // 巨幅插画：S.bigpic 块 2×2（四格虚线框；不与特殊格重叠）
+  if(S.bigpic&&cols>=2&&rows>=2){
+    let placed=0,guard=0;
+    while(placed<S.bigpic&&guard++<60){
+      const x=(Math.random()*(cols-1))|0, y=(Math.random()*(rows-1))|0;
+      const ids=[y*cols+x,y*cols+x+1,(y+1)*cols+x,(y+1)*cols+x+1];
+      if(ids.some(i=>i>=cells.length||cells[i].dataset.sp||cells[i].dataset.bp))continue;
+      const bp='b'+placed;
+      ids.forEach((i,j)=>{cells[i].dataset.bp=bp;cells[i].classList.add('bigpic');
+        if(j===0)cells[i].classList.add('bp-tl');});
+      placed++;
+    }
+  }
+  // 全景插画：S.bigpic9 块 3×3（九格虚线框；不与特殊格/巨幅插画重叠）
+  if(S.bigpic9&&cols>=3&&rows>=3){
+    let placed=0,guard=0;
+    while(placed<S.bigpic9&&guard++<60){
+      const x=(Math.random()*(cols-2))|0, y=(Math.random()*(rows-2))|0;
+      const ids=[];for(let dy=0;dy<3;dy++)for(let dx=0;dx<3;dx++)ids.push((y+dy)*cols+(x+dx));
+      if(ids.some(i=>i>=cells.length||cells[i].dataset.sp||cells[i].dataset.bp))continue;
+      const bp='B'+placed;
+      ids.forEach((i,j)=>{cells[i].dataset.bp=bp;cells[i].classList.add('bigpic');
+        if(j===0)cells[i].classList.add('bp-tl');});
+      placed++;
+    }
+  }
+  // 一点成彩：概率在某个盖着的普通格子埋「彩色格」（内容锁成彩晶；揭到它→全场晾着的晶全变彩）
+  if(S.rainbowcell&&Math.random()<RAINBOWCELL_P[S.rainbowcell]){
+    const cand=cells.filter(c=>c.classList.contains('covered')&&!c.dataset.sp&&!c.dataset.bp);
+    if(cand.length){const c=cand[Math.random()*cand.length|0];c.dataset.rcell='1';c.classList.add('rcell');c.dataset.roll=Math.min(5,S.quality);}
+  }
+  applyPeek();
+  layoutGrid();
+  grid.classList.remove('zoomin');void grid.offsetWidth;       // 翻页镜头落位（一次性CSS动画）
+  grid.classList.add('zoomin');
+  state='digging';
+  startAuto();startTwz();startRegrow();startBinder();
+  // 折角标记：开局自动免费揭（不算步不掷骰不启动犹豫计时）
+  if(S.dogear){
+    const cv=shuffle(cells.filter(c=>!c.dataset.bp));
+    for(let i=0;i<S.dogear&&i<cv.length;i++){
+      setTimeout(()=>{if(state==='digging')reveal(cv[i],true,{_free:true});},400+i*220);  // 免费揭不算开门红的步
+    }
+  }
+  updateHUD();
+}
+function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];}return a;}
+/* ===================== SEC4 动作系统（揭/捏/特殊格/刀） ===================== */
+let freeBudget=0;                                              // 特殊格连锁的免费揭预算（防无限递归）
+function onCell(el,manual){
+  if(state!=='digging')return;
+  if(el.classList.contains('covered'))reveal(el,false,{manual});
+  else if(el.classList.contains('hasgem'))pickGem(el,{manual});
+}
+function neighbors(el,dist){
+  const x=+el.dataset.x,y=+el.dataset.y;
+  return cells.filter(c=>{
+    const dx=Math.abs(+c.dataset.x-x),dy=Math.abs(+c.dataset.y-y);
+    return (dx||dy)&&dx<=dist&&dy<=dist;
+  });
+}
+/* 揭纸入口：free=不算步不掷骰（连撕/刀/特殊格/折角） */
+function reveal(el,free,opt){
+  opt=opt||{};
+  if(state!=='digging'||!el.classList.contains('covered'))return;
+  if(!free){
+    if(!pageStarted){pageStarted=true;pageStat.firstAt=Date.now();
+      const hesit=(pageStat.firstAt-pageStat.readyAt)/1000;    // 犹豫时长 → 快枪手/慢工细活
+      if(opt.manual){                                          // 手玩才吃快枪手/慢工细活（装订机自动开工不算）
+        if(hesit<2&&S.fastdraw)pageStat.fast=true;
+        if(hesit>=10&&S.slowwork){pageBonusSteps+=S.slowwork*2;
+          setTipOnce('慢工细活：本页安全步 +'+(S.slowwork*2));}
+      }
+    }
+    if(!rollStep(false))return;
+    freeBudget=40;                                             // 每个真实步刷新免费预算
+    if(opt.manual&&S.kickoff&&!pageStat.kickoffUsed){          // 起手式：每页第一次亲手揭必有晶
+      pageStat.kickoffUsed=true;
+      if(+el.dataset.roll<0)el.dataset.roll=rollTier();
+    }
+    if(opt.manual&&S.quickdraw&&!pageStat.quickUsed){pageStat.quickUsed=true;setTimeout(doKnifeCut,250);}  // 快刀出鞘：本页首揭自动裁一行
+    if(opt.manual&&S.secondblade&&pageStat.secondCharged&&Math.random()<[0,.15,.30,.45][S.secondblade]){    // 二次开刃：裁后下一揭概率炸开3×3
+      pageStat.secondCharged=false;
+      const nb=neighbors(el,1).filter(c=>c.classList.contains('covered'));
+      freeBudget=Math.max(freeBudget,nb.length+5);
+      nb.forEach((c,i)=>setTimeout(()=>{if(state==='digging'&&c.classList.contains('covered'))reveal(c,true,{_free:true});},i*50));
+      setTipOnce('<b>二次开刃！</b>周围一片全开');
+    }
+  }
+  // 巨幅插画：整块一起揭 + 揭开即收——里面的晶直接到手，整块只花这1步（2026-07-05 用户）
+  if(el.dataset.bp){
+    const bp=el.dataset.bp;
+    const blk=cells.filter(c=>c.dataset.bp===bp&&c.classList.contains('covered'));
+    blk.forEach(c=>doOpen(c,opt));
+    if(S.autoframe)freePickAll(blk);                          // 揭裱直取：点亮才"揭开即收"，否则晶晾着自己捏
+  }else doOpen(el,opt);
+  updateHUD();
+  maybeAutoSettle();
+}
+function doOpen(el,opt){
+  opt=opt||{};
+  const sp=el.dataset.sp;delete el.dataset.sp;
+  el.classList.remove('covered','regrow','peek','spmark','bigpic','bp-tl');
+  SPECIAL_KINDS.forEach(k=>el.classList.remove('sp-'+k));
+  el.classList.add('open');
+  rip(.06,.045);
+  LIFE.reveals++;
+  let q=+el.dataset.roll;
+  // 聚宝格：内容=本页已捏颗数换算的品质（5颗1档；连环格强化3级 → 4颗1档）
+  if(sp==='hoard'){
+    const per=S.magicplus>=3?4:5;
+    q=Math.min(Math.min(5,S.quality),(pageStat.counts.reduce((a,b)=>a+b,0)/per)|0);
+    el.dataset.roll=q;
+  }
+  // 开门红追踪（只统计真实步；gatesDone 后不再管）
+  if(!opt._free&&!gatesDone&&S.gates){
+    if(q>=0)gatesHit++;else gatesDone=true;
+    if(gatesHit>=2+S.gates){gatesDone=true;gatesBonus=1+S.gates*0.10;
+      setTipOnce('<b>开门红！</b>本页收益 +'+(S.gates*10)+'%');}
+  }
+  if(q<0){
+    if(S.combopad&&padLeft>0){padLeft--;floatText(el,'护住了!','#D9A03F');}  // 连击护垫：揭空先扣一张、连击不断
+    else{combo=0;comboTierShown=0;}                            // 连击断（护垫耗尽 / 没买护垫），里程碑重放位归零
+    if(S.scrap){
+      const sv=SCRAP_V(S.scrap)*curMult()*pageMult();
+      haul+=sv;floatText(el,'+'+fmtF(sv),'#9A8A66');
+      setTipOnce('空纸片…抠下一点边角料');
+    }else setTipOnce('空纸片…下一张');
+    if(S.droplet&&Math.random()<S.droplet*0.05){               // 胶水滴：+1安全步
+      pageBonusSteps++;floatText(el,'+1步','#41689F');
+      setTipOnce('捡到胶水滴：本页安全步 +1');
+    }
+  }else{
+    const info=TIERS[q];
+    el.innerHTML='<i class="gem wait '+info.cls+'"></i>';
+    el.classList.add('hasgem');
+    el.dataset.tier=q;
+    el.dataset.man=opt.manual?'1':'0';                         // 左手剪刀：记录是否亲手揭
+    sfxGem(q);
+    if(navigator.vibrate)navigator.vibrate(4);
+    if(page===1)setTipOnce('<b>再点一下</b>，把纸晶捏进口袋');
+    // 连撕（数量制）：25%触发，带起 等级+机械连撕(自动时) 张；连环撕链式传播
+    if(S.chain&&Math.random()<0.25)doChain(el,S.chain+(opt.auto?S.mechchain:0),opt);
+  }
+  if(page===1)firstFlipDone=true;
+  // 特殊格效果分发（在内容之后执行）
+  if(sp)runSpecial(sp,el,opt,1);
+  if(el.dataset.rcell){delete el.dataset.rcell;el.classList.remove('rcell');turnAllRainbow();checkAch();}  // 一点成彩：揭到彩色格→全场变彩晶
+}
+function doChain(el,count,opt){
+  const nb=shuffle(neighbors(el,1).filter(c=>c.classList.contains('covered')));
+  for(let i=0;i<count&&i<nb.length&&freeBudget>0;i++){
+    freeBudget--;
+    const c=nb[i];
+    setTimeout(()=>{
+      if(state!=='digging'||!c.classList.contains('covered'))return;
+      reveal(c,true,{...opt,_free:true});
+      // 连环撕：带起的若出晶，概率继续
+      if(+c.dataset.roll>=0&&S.chainchain&&Math.random()<S.chainchain*0.15)
+        doChain(c,1,opt);
+    },140+i*90);
+  }
+}
+/* 八种特殊格效果（mag=万花筒×2 用） */
+function runSpecial(sp,el,opt,mag){
+  const fopt={...opt,_free:true};
+  const freeReveal=list=>{list.forEach((c,i)=>{
+    if(freeBudget<=0)return;freeBudget--;
+    setTimeout(()=>{if(state==='digging'&&c.classList.contains('covered'))reveal(c,true,fopt);},160+i*80);
+  });};
+  if(sp==='chaincell'){                                        // 连环格：翻开周围一圈（强化2级两圈/4级三圈）
+    const dist=1+(S.magicplus>=4?2:S.magicplus>=2?1:0);
+    let list=neighbors(el,dist).filter(c=>c.classList.contains('covered'));
+    if(mag>1)list=list.concat(shuffle(cells.filter(c=>c.classList.contains('covered')&&!list.includes(c))).slice(0,8));
+    freeReveal(list);
+    setTipOnce('<b>连环格！</b>周围的纸哗啦全开');
+  }else if(sp==='capsule'){                                    // 胶囊格：+2安全步（强化1级起+1）
+    const add=(2+(S.magicplus>=1?1:0))*mag;
+    pageBonusSteps+=add;floatText(el,'+'+add+'步','#41689F');
+    setTipOnce('胶囊格：本页安全步 +'+add);
+  }else if(sp==='tictac'){                                     // 井字格：翻开同行同列（万花筒×2再加8张）
+    const x=+el.dataset.x,y=+el.dataset.y;
+    let list=cells.filter(c=>(+c.dataset.x===x||+c.dataset.y===y)&&c.classList.contains('covered'));
+    if(mag>1)list=list.concat(shuffle(cells.filter(c=>c.classList.contains('covered')&&!list.includes(c))).slice(0,8));
+    freeReveal(list);
+    setTipOnce('<b>井字格！</b>整行整列全开');
+  }else if(sp==='portal'){                                     // 传送格：另一个传送格自动揭
+    const other=cells.find(c=>c.dataset.sp==='portal'&&c.classList.contains('covered'));
+    if(other)freeReveal([other]);
+    setTipOnce('传送格：另一端也开了');
+  }else if(sp==='hoard'){
+    setTipOnce('<b>聚宝格！</b>攒得越多它越值钱');
+  }else if(sp==='kaleido'){                                    // 万花筒：随机效果×2
+    const pool=['chaincell','capsule','tictac'].slice(0,Math.max(1,Math.min(3,S.magic)));
+    runSpecial(pool[Math.random()*pool.length|0],el,opt,2);
+    setTipOnce('<b>万花筒格！</b>随机效果双倍');
+  }else if(sp==='timecell'){                                   // 时光格：空格全部重新盖上
+    let n=0;
+    cells.forEach(c=>{
+      if(c.classList.contains('open')&&!c.classList.contains('hasgem')){
+        c.classList.remove('open');c.innerHTML='';
+        c.classList.add('covered','regrow');
+        c.dataset.roll=regrowRoll();n++;
+      }
+    });
+    applyPeek();
+    setTipOnce('<b>时光格！</b>'+n+' 张空纸重新贴上了');
+  }
+}
+/* 捏晶：捏也算一步；双黄/三黄/共鸣/彩带/回响/手感全在这 */
+function pickGem(el,opt){
+  opt=opt||{};
+  if(state!=='digging'||!el.classList.contains('hasgem'))return;
+  if(!rollStep(true))return;
+  const q=+el.dataset.tier;
+  if(S.riskcombo){const over=steps-safeSteps();                // 险区连魂：险区内亲手连捏累加、越深越肥（gemGain前算好）
+    if(opt.manual&&over>0)riskCombo=Math.min(riskCombo+1,over); else if(over<=0)riskCombo=0;}
+  let cnt=1,gain=gemGain(q,{manualCut:el.dataset.man==='1',manualPick:!!opt.manual,framed:!!el.dataset.bp});
+  if(S.twin&&Math.random()<S.twin*0.03){                       // 双黄蛋
+    cnt=2;gain*=2;LIFE.twins++;
+    if(S.tri&&Math.random()<S.tri*0.10){cnt=3;gain*=1.5;LIFE.tris++;}  // 三黄蛋（合计×3）
+  }
+  haul+=gain;
+  pageStat.counts[q]+=cnt;
+  colorTotals[q]+=cnt;
+  LIFE.picks++;
+  if(opt.manual){const g=curGlue();if(g<=40)LIFE.deepRiskPicks=(LIFE.deepRiskPicks||0)+1;if(g<=10)LIFE.brinkPicks=(LIFE.brinkPicks||0)+1;} // 成就:深险区/濒危亲手捏晶
+  combo++;                                                     // 好运连连
+  if(combo>LIFE.bestCombo)LIFE.bestCombo=combo;                // 生涯最高连击
+  if(S.frenzy&&combo>=20&&Date.now()>frenzyUntil){             // 狂热时刻
+    frenzyUntil=Date.now()+(10+(S.frenzy-1)*4)*1000;
+    restartTimers();toast('🔥 狂热时刻：自动化 ×2！');
+  }
+  checkComboTier();                                            // 连击里程碑：够台阶就放彩虹带(累积1/2/3/5条,格子上层半透明扫过)
+  if(q===5){
+    if(S.rainbowdust)pageStat.dustOn=true;                     // 彩虹尘（本页生效）
+    if(S.ribbon){ribbonBurst();                                // 纸屑彩带：免费收晶（连环彩带再+2颗/级）
+      const w=shuffle(cells.filter(c=>c.classList.contains('hasgem')&&c!==el)).slice(0,S.ribbon*3+S.ribbonchain*2);
+      w.forEach((c,i)=>setTimeout(()=>freePick(c),200+i*120));
+    }
+  }
+  if(q===4&&S.ribbonchain&&Math.random()<0.25*S.ribbonchain){  // 连环彩带：捏橙也有概率拉小彩带
+    const w=cells.filter(c=>c.classList.contains('hasgem')&&c!==el);
+    if(w.length){
+      const c=w[Math.random()*w.length|0];
+      setTimeout(()=>freePick(c),220);
+      setTipOnce('<b>小彩带！</b>顺手又收了一颗');
+    }
+  }
+  if(q>=4&&S.rareecho){                                        // 稀有回响：绿升蓝
+    cells.filter(c=>c.classList.contains('covered')&&+c.dataset.roll===0)
+      .slice(0,S.rareecho).forEach(c=>c.dataset.roll=1);
+    applyPeek();
+  }
+  if(q>=4&&S.echofission){                                     // 回响裂变：蓝→紫 + 更多绿→蓝
+    cells.filter(c=>c.classList.contains('covered')&&+c.dataset.roll===1)
+      .slice(0,S.echofission).forEach(c=>c.dataset.roll=2);
+    cells.filter(c=>c.classList.contains('covered')&&+c.dataset.roll===0)
+      .slice(0,S.echofission*2).forEach(c=>c.dataset.roll=1);
+    applyPeek();
+  }
+  bookmarkTier=Math.max(bookmarkTier,S.bookmark?q:-1);         // 页脚书签记录
+  finishPick(el,q,cnt,gain);
+  updateHUD();checkAch();                                      // 成就检测(亲手捏)
+  maybeAutoSettle();
+}
+/* 一键收晶专属音效：单声上行琶音（像"升级/收下"），替代几十个"啪"叠一起的爆音 */
+function sfxCollectAll(){
+  const a=AC();if(!a||!sfxOn)return;const t=a.currentTime;
+  [523,659,784,1047].forEach((f,i)=>{                          // C E G C↑ 快速上行
+    const o=a.createOscillator(),n=a.createGain(),s=t+i*0.06;
+    o.type='triangle';o.frequency.value=f;
+    n.gain.setValueAtTime(0.0001,s);
+    n.gain.exponentialRampToValueAtTime(0.06,s+0.02);
+    n.gain.exponentialRampToValueAtTime(0.0001,s+0.22);
+    o.connect(n);n.connect(a.destination);o.start(s);o.stop(s+0.25);
+  });
+}
+function freePick(el,silent){                                  // 彩带/装订机的免费收取：不算步不掷骰；silent=批量收取时静音单颗音
+  if(state!=='digging'||!el.classList.contains('hasgem'))return;
+  const q=+el.dataset.tier;
+  const gain=gemGain(q,{manualCut:el.dataset.man==='1',framed:!!el.dataset.bp});
+  haul+=gain;pageStat.counts[q]++;colorTotals[q]++;LIFE.picks++;combo++;checkComboTier();  // 免费收也算连击、也补放里程碑彩虹带
+  if(combo>LIFE.bestCombo)LIFE.bestCombo=combo;
+  bookmarkTier=Math.max(bookmarkTier,S.bookmark?q:-1);         // 免费捏的也记入页脚书签
+  finishPick(el,q,1,gain,silent);
+  updateHUD();maybeAutoSettle();
+}
+/* 一键收一批晶：全部静音单颗、只播一次收晶音（防爆音，2026-07-05 用户） */
+function freePickAll(list){
+  const arr=list.filter(c=>c.classList.contains('hasgem'));
+  if(!arr.length)return;
+  arr.forEach(c=>freePick(c,true));
+  sfxCollectAll();
+}
+function finishPick(el,q,cnt,gain,silent){
+  el.classList.remove('hasgem');delete el.dataset.tier;
+  const gem=el.querySelector('.gem');
+  if(gem){gem.classList.remove('wait');gem.classList.add('picked');setTimeout(()=>gem.remove(),320);}
+  flyGem(el,q);                                                // 收纳动画：飞向左栏"本页已捏"
+  const [x,y]=cellCenter(el);
+  confetti(x,y,TIERS[q].c,(q>=2||cnt>1)?18:8,q>=2||cnt>1);
+  floatText(el,(cnt===3?'三黄！+':cnt===2?'双黄！+':'+')+fmtF(gain),TIERS[q].c);
+  if(!silent){sfxPick(q);if(navigator.vibrate)navigator.vibrate(q>=2?[8,20,12]:6);}  // 批量收取时不逐颗响
+}
+/* 裁纸刀线：doKnifeCut（手动按钮 + 快刀出鞘/机械开刃 共用）；含十字/米字/螺旋/全屏裁 */
+function doKnifeCut(){
+  if(state!=='digging')return;
+  pageStat.knifeN=(pageStat.knifeN||0)+1;
+  const autopick=pageStat.knifeN<=S.knifeback;                 // 回旋裁刀：每页前N刀裁到的晶免费捏
+  const cov=c=>c.classList.contains('covered');
+  let list;
+  if(S.fullcut&&Math.random()<S.fullcut*0.02){                // 全屏裁：概率一刀裁开整页
+    list=cells.filter(cov);
+    setTipOnce('<b>全屏裁！</b>一刀裁开整页');
+  }else{
+    const rowScore=y=>cells.filter(c=>+c.dataset.y===y&&cov(c))
+      .reduce((s,c)=>s+(S.crosscut>=2?(+c.dataset.roll>=0?3:1):1),0);   // 十字刀Lv2：晶行优先
+    let bs=-1,byCand=[];                                       // 并列最高分的行全收集，随机选（治"总从顶行开始"）
+    for(let y=0;y<rows;y++){const sc=rowScore(y);if(sc>bs){bs=sc;byCand=[y];}else if(sc===bs)byCand.push(y);}
+    const bestY=byCand[Math.random()*byCand.length|0];
+    list=cells.filter(c=>+c.dataset.y===bestY&&cov(c));
+    let bestX=bestY;                                           // 兜底：无十字刀时米字裁也有个居中的交点
+    if(S.crosscut>=1){                                         // 十字刀：加一列（并列同样随机选）
+      let bx=-1,bxCand=[];
+      for(let x=0;x<cols;x++){const sc=cells.filter(c=>+c.dataset.x===x&&cov(c)).length;if(sc>bx){bx=sc;bxCand=[x];}else if(sc===bx)bxCand.push(x);}
+      bestX=bxCand[Math.random()*bxCand.length|0];
+      cells.filter(c=>+c.dataset.x===bestX&&cov(c)&&!list.includes(c)).forEach(c=>list.push(c));
+    }
+    if(S.asteriskcut){                                         // 米字裁：过交点的两条对角线
+      cells.forEach(c=>{const dx=+c.dataset.x-bestX,dy=+c.dataset.y-bestY;
+        if((dx===dy||dx===-dy)&&cov(c)&&!list.includes(c))list.push(c);});
+    }
+    if(S.spiralcut){                                           // 螺旋回形刀：随机处炸开一片（半径1+级）
+      const cv=cells.filter(cov);
+      if(cv.length){const cen=cv[Math.random()*cv.length|0],cx=+cen.dataset.x,cy=+cen.dataset.y,rad=1+S.spiralcut;
+        cells.forEach(c=>{if(Math.abs(+c.dataset.x-cx)<=rad&&Math.abs(+c.dataset.y-cy)<=rad&&cov(c)&&!list.includes(c))list.push(c);});}
+    }
+  }
+  freeBudget=Math.max(freeBudget,list.length+10);
+  pageStat.secondCharged=true;                                // 二次开刃：裁完蓄力，下次揭有概率炸9格
+  list.forEach((c,i)=>setTimeout(()=>{
+    if(state!=='digging'||!c.classList.contains('covered'))return;
+    reveal(c,true,{_free:true});
+    if(autopick&&c.classList.contains('hasgem'))setTimeout(()=>freePick(c),180);  // 回旋裁刀
+  },i*40));
+  rip(.16,.09);
+  updateHUD();
+}
+$('knifeBtn').onclick=()=>{
+  if(state!=='digging'||knifeLeft<=0)return;
+  knifeLeft--;doKnifeCut();
+};
+/* ===================== SEC5 结算与散架 ===================== */
+let rateHist=[];                                               // 近5页 {b:入册,s:秒} → 离线速率
+function sampleRate(banked){
+  const sec=Math.max(3,(Date.now()-pageStat.readyAt)/1000);
+  rateHist.push({b:banked,s:sec});
+  if(rateHist.length>5)rateHist.shift();
+  const B=rateHist.reduce((a,x)=>a+x.b,0),Sec=rateHist.reduce((a,x)=>a+x.s,0);
+  offRate=Sec>0?B/Sec:0;                                       // 每秒入册（离线装订用）
+}
+function buildReport(){
+  const c=pageStat.counts,tot=c.reduce((a,b)=>a+b,0);
+  let gems='';
+  c.forEach((n,i)=>{if(n>0)gems+='<span class="gc"><i style="background:'+TIERS[i].c+'"></i>×'+n+'</span>';});
+  if(!gems)gems='<span style="color:var(--mute)">一颗都没捏到</span>';
+  const hesit=pageStat.firstAt?((pageStat.firstAt-pageStat.readyAt)/1000):0;
+  const dur=pageStat.firstAt?((Date.now()-pageStat.firstAt)/1000):0;
+  return '<div class="gems">'+gems+'</div>'
+    +'合计捏起 <b>'+tot+'</b> 颗 · 走了 <b>'+steps+'</b> 步'
+    +(goldPg?'<br>✨ 这是一张'+(rainbowPg?'<b>彩页</b>':'<b>金页</b>'):'')
+    +'<br>犹豫了 <b>'+(hesit<0.1?'—':hesit.toFixed(1)+'秒')+'</b> · 动手后持续 <b>'+dur.toFixed(1)+'秒</b>'
+    +(combo>1?'<br>最高连击 <b>'+combo+'</b> 层':'');
+}
+function settle(gain,teach,opt){
+  opt=opt||{};
+  if(state!=='digging'&&state!=='scatter')return;
+  state='settle';stopTimers();
+  const banked=Math.ceil(gain);                                // 零头进位（用户方案）
+  const interestGain=(S.interest&&banked>0)                             // 纸晶利息：空手页不发、封顶本页入册的一半（堵漏，2026-07-05）
+    ?Math.min(Math.floor(album*0.0005*S.interest),Math.floor(banked*0.5)):0;
+  album+=banked+interestGain;
+  lastGain=banked;
+  pagesTotal++;LIFE.pages++;
+  submitScore();                                              // 排行榜：翻页后交一次分（内部节流30秒）
+  if(morningLeft>0)morningLeft--;                              // 早安剪报：每翻一页消耗一次
+  LIFE.bestPage=Math.max(LIFE.bestPage,banked);
+  if(!opt.fromShatter){retreatStreak++;                        // 收手的艺术：主动收册连胜
+    carryCombo=S.combocarry?Math.floor(combo*CARRY_RATE[S.combocarry]):0;}  // 连击不断：主动收册续接部分连击（下页新页读取）
+  if(banked<=0)LIFE.emptyFlips=(LIFE.emptyFlips||0)+1;                       // 成就:空手翻页
+  if(new Date().getHours()<5)LIFE.midnightFlips=(LIFE.midnightFlips||0)+1;   // 成就:深夜(0-4点)翻页
+  checkAch();                                                                // 成就检测(翻页结算)
+  sampleRate(banked);
+  pageStat.report=buildReport();
+  save();
+  // 自动装订 Lv3：零间隔静默翻页（不弹结算）
+  if(opt.silent&&S.binder>=3){
+    toast('📖 自动装订：第 '+page+' 页 +'+fmt(banked)+(interestGain?'（利息+'+fmt(interestGain)+'）':''));
+    page++;save();newPage();
+    return;
+  }
+  $('reportS').innerHTML=pageStat.report;
+  $('settleTitle').textContent=banked>0?'这一页贴进册子了':'空手翻页';
+  $('settleTitle').className=banked>0?'safe':'lost';
+  $('sGain').textContent='✦ '+fmtF(gain)+(banked>gain?'（零头进位，收 '+banked+'）':'');
+  $('sAlbum').innerHTML='✦ '+fmt(album)+(interestGain?' <span style="font-size:.7em;color:var(--good)">利息+'+fmt(interestGain)+'</span>':'');
+  $('copyAdBtn').style.display=banked>0?'':'none';
+  const gfoil=S.goldfoil&&goldfoilDay!==new Date().toDateString();  // 金箔复写：每日首印翻倍效果×2
+  $('copyAdBtn').innerHTML='📺 看广告 · 复写纸印一份（×'+((2+S.adcopy*0.5/3)*(gfoil?2:1)).toFixed(1)+(gfoil?' · 今日金箔':'')+'）';
+  $('toCraftBtn').style.display=teach?'':'none';
+  $('settleCraftBtn').style.display=teach?'none':'';           // 快捷去手工台（教学期用上面那颗专用按钮）
+  $('nextBtn').style.display=teach?'none':'';
+  $('settleHint').textContent=teach
+    ?'第一颗纸晶到手！去手工台把纸页加大，后面才有得贪。'
+    :(S.expand>=1?'提示：揭和捏都算一步。晾着的晶可以等倍率高了再捏，但散架时没捏的直接埋了。':'');
+  show('ovSettle');updateHUD();
+}
+function shatter(){
+  state='scatter';stopTimers();
+  LIFE.shatters++;retreatStreak=0;riskCombo=0;carryCombo=0;    // 散架：险区连魂+跨页续接都清零（散架仍断）
+  sfxScatter();
+  if(navigator.vibrate)navigator.vibrate([30,40,70]);
+  // 保险胶带 + 回收桶：散架也有兜底
+  const insured=S.insure?Math.ceil(haul*0.06*S.insure):0;     // 兜底合计压到40%：保险30%+回收10%（2026-07-05 拍板）
+  const recycled=S.recycle?Math.ceil(haul*0.025*S.recycle):0;
+  album+=insured+recycled;
+  pagesTotal++;LIFE.pages++;
+  submitScore();                                              // 排行榜：散架翻页也更新分（内部节流）
+  if(morningLeft>0)morningLeft--;                              // 早安剪报：散架页也算消耗
+  sampleRate(insured+recycled);
+  save();
+  const waiting=cells.filter(c=>c.classList.contains('hasgem')).length;
+  cells.forEach(c=>{
+    c.style.setProperty('--dx',(Math.random()*160-80)+'px');
+    c.style.setProperty('--dy',(60+Math.random()*120)+'px');
+    c.style.setProperty('--rot',(Math.random()*140-70)+'deg');
+    c.style.animationDelay=(Math.random()*0.18)+'s';
+    c.classList.add('scatter');
+  });
+  const r=area.getBoundingClientRect();
+  confetti(r.width/2,r.height/2,'#D9C6A3',36,true);
+  setTimeout(()=>{
+    $('lostHaul').textContent=fmtF(haul);
+    $('lostWait').textContent=waiting>0?'（还有 '+waiting+' 颗没捏的直接埋了）':'';
+    $('lostSaved').textContent=(insured||recycled)
+      ?('兜底：保险胶带 +'+fmt(insured)+(recycled?' · 回收桶 +'+fmt(recycled):'')+'（已入册）'):'';
+    $('tapeAdBtn').innerHTML='📺 看广告 · 用透明胶带粘回来'+(S.adtape?'（+'+S.adtape*20+'%）':'');
+    show('ovScatter');
+    // 自动装订机：散架也自动翻页重来（挂机不断档）
+    if(S.binder>=1){
+      setTimeout(()=>{                                         // 正在看广告救回时，装订机不许抢着翻页
+        if(state==='scatter'&&!adBusy){hide();page++;save();newPage();toast('📖 散架了——装订机自动翻页重来');}
+      },2600);
+    }
+  },850);
+}
+function maybeAutoSettle(){
+  if(state!=='digging'||S.regrow)return;
+  if(cells.some(c=>c.classList.contains('covered')||c.classList.contains('hasgem')))return;
+  setTimeout(()=>{if(state==='digging')settle(haul,S.expand===0);},650);
+}
+/* ===================== SEC6 自动化（剪刀/镊子/再生/装订机） ===================== */
+const T_={auto:null,twz:null,regrow:null,binder:null};
+const idleOK=()=>pageStarted||S.binder>=1;                     // 装订机≥1级：新页自动开工=真挂机（2026-07-05 用户拍板的守则例外）
+function itv(base,twz){
+  let t=base*(1-0.08*S.flowlead);                              // 流水线督导
+  if(twz&&S.smarttwz>=2)t*=(1-0.2*(S.smarttwz-1));             // 智能镊子提速20%/40%（对齐描述）
+  if(Date.now()<frenzyUntil)t/=2;                              // 狂热时刻
+  return Math.max(300,t*1000);
+}
+// 自动化允许的步数边界：安全步内 + 风险旋钮放宽的档位
+function autoAllowed(){
+  const over=steps+1-safeSteps();
+  return over<=Math.min(knobSet,S.riskknob);
+}
+function startAuto(){
+  stopT('auto');if(!S.auto)return;
+  T_.auto=setInterval(()=>{
+    if(state!=='digging'||craftOpen||!idleOK())return;
+    if(S.mechblade&&!pageStat.mechUsed){pageStat.mechUsed=true;doKnifeCut();}  // 机械开刃：自动剪刀每页首次工作也裁一刀
+    if(!autoAllowed()){setTipOnce('自动剪刀停手——超出旋钮档位，贪要亲手来');return;}
+    const cv=cells.filter(c=>c.classList.contains('covered'));
+    if(!cv.length)return;
+    let pick=null;
+    if(S.smartcut){                                            // 智能剪刀优先级
+      pick=cv.find(c=>c.classList.contains('peek'))
+        ||(S.smartcut>=2?cv.find(c=>c.dataset.sp):null)
+        ||(S.smartcut>=3?cv.find(c=>c.dataset.bp):null);
+    }
+    if(!pick)pick=cv[Math.random()*cv.length|0];
+    pageStat.autoTouched=true;reveal(pick,false,{auto:true});   // 赤手空拳：自动剪刀动手→本页失去手玩加成
+    if(S.twincut&&Math.random()<0.3*S.twincut){                // 双持剪刀：概率白揭第二张
+      const cv2=cells.filter(c=>c.classList.contains('covered'));
+      if(cv2.length)setTimeout(()=>{
+        if(state==='digging')reveal(cv2[Math.random()*cv2.length|0],true,{auto:true,_free:true});
+      },160);
+    }
+  },itv(AUTO_ITV[S.auto-1]));
+}
+function startTwz(){
+  stopT('twz');if(!S.tweezer)return;
+  T_.twz=setInterval(()=>{
+    if(state!=='digging'||craftOpen||!idleOK())return;         // 没动手前镊子不动（守则§3；装订机≥1级例外）
+    if(!autoAllowed())return;                                  // 捏也算步：同受旋钮约束
+    let w=cells.filter(c=>c.classList.contains('hasgem'));
+    if(!w.length)return;
+    if(S.smarttwz)w.sort((a,b)=>+b.dataset.tier-+a.dataset.tier);  // 智能镊子：高价值优先
+    pageStat.autoTouched=true;pickGem(w[0],{});                 // 赤手空拳：自动镊子动手→本页失去手玩加成
+  },itv(TWZ_ITV[S.tweezer-1],true));
+}
+function startRegrow(){
+  stopT('regrow');if(!S.regrow)return;
+  T_.regrow=setInterval(()=>{
+    if(state!=='digging'||craftOpen||!idleOK())return;
+    const times=1+Math.floor(S.regrow/3);                       // 补新纸一次多贴几张（Lv3→2/Lv6→3/Lv9+→4，追得上后期消耗）
+    let did=false;
+    for(let k=0;k<times;k++){
+      if(Math.random()>REGROW_P(S.regrow))continue;
+      const open=cells.filter(c=>c.classList.contains('open')&&!c.classList.contains('hasgem'));
+      if(!open.length)break;
+      const c=open[Math.random()*open.length|0];
+      c.classList.remove('open');c.innerHTML='';
+      c.classList.add('covered','regrow');
+      c.dataset.roll=regrowRoll();did=true;
+    }
+    if(did)applyPeek();
+  },itv(0.9));                                                  // 提速（2026-07-05：1.2秒→0.9秒）+ 吃督导/狂热加速
+}
+function startBinder(){
+  stopT('binder');if(!S.binder)return;
+  T_.binder=setInterval(()=>{
+    if(state!=='digging'||craftOpen||!idleOK()||!binderAuto)return;  // 关了自动装订=不自动收册翻页
+    const exhausted=!autoAllowed();
+    // 整页判定修正（2026-07-05 bug）：只有"没盖着的 且 没晾着的晶 且 不再补新纸"才算真做完；
+    // 否则会出现"还剩步数、还有晶没捏"就被装订翻页的情况
+    const cleared=!S.regrow&&!cells.some(c=>c.classList.contains('covered'))&&!cells.some(c=>c.classList.contains('hasgem'));
+    // 智能装订+：本页明显低于近期均值 → 提前止损翻页
+    let early=false;
+    if(S.smartbind&&rateHist.length>=3&&steps>safeSteps()*0.8){
+      const avg=rateHist.reduce((a,x)=>a+x.b,0)/rateHist.length;
+      if(haul<avg*[0.6,0.75,0.9][S.smartbind-1])early=true;
+    }
+    if(!exhausted&&!cleared&&!early)return;
+    // Lv2：收册前把晾着的晶免费捏完（装订工的熟练手法）
+    if(S.binder>=2){
+      pageStat.autoTouched=true;freePickAll(cells);           // 装订机Lv2一键收满页（只播一次收晶音）；赤手空拳：装订动手→本页失去手玩加成
+    }
+    const silent=S.binder>=3;
+    settle(haul,false,{silent});
+    if(!silent){                                               // Lv1/2：结算页停1.8秒自动翻（看广告/逛手工台时不抢）
+      setTimeout(()=>{
+        if(state==='settle'&&!adBusy&&!craftOpen){hide();page++;save();newPage();toast('📖 自动装订：翻到第 '+page+' 页');}
+      },1800);
+    }
+  },1200);
+}
+function stopT(k){if(T_[k]){clearInterval(T_[k]);T_[k]=null;}}
+function stopTimers(){stopT('auto');stopT('twz');stopT('regrow');stopT('binder');}
+function restartTimers(){
+  if(state!=='digging')return;
+  startAuto();startTwz();startRegrow();startBinder();
+  if(Date.now()<frenzyUntil)setTimeout(restartTimers,frenzyUntil-Date.now()+80);  // 狂热结束恢复速度
+}
+/* ===================== SEC7 科技树画布（分叉树） ===================== */
+const TREE_W=7400,TREE_H=3800,TCX=2900,TCY=1900;              // 画布撑大(2026-07-06坐标推演校准零重叠；六色链式拆分后品质线朝右伸到第7圈，右侧加宽到7400)
+const RADS=[515,970,1425,1870,2330,2785,3240,3695],SQUASH=0.72,SECT=58; // 半径×1.5 + 扇区58°：坐标推演验证零重叠(治信封/复写纸那簇)；后3圈为六色链式拆分(蓝→彩)预留
+let tPan={x:0,y:0},tZoom=0.5;
+const NODE_POS={};
+function toolArt(tk){
+  const lv=S[tk.id];
+  if(tk.art==='artFan'){
+    let s='';
+    for(let i=5;i>=0;i--){const ang=-30+i*12;
+      s+='<div class="p f'+i+(i>S.quality?' lock':'')+'" style="transform:rotate('+ang+'deg)"></div>';}
+    return s+'<div class="p pin"></div>';
+  }
+  if(tk.art==='artGlue'){const h=Math.round(lv/tk.max*78);
+    return '<div class="p body"></div><div class="p liquid" style="height:'+h+'%"></div>'
+      +'<div class="p neck"></div><div class="p cap"></div><div class="p label"></div>';}
+  if(tk.art==='artDye')return '<div class="p bottle"></div>'
+    +'<div class="p liq" style="background:'+(tk.color||'#B5763C')+';height:'+(12+Math.round(lv/tk.max*44))+'%"></div>'
+    +'<div class="p cork"></div>';
+  if(tk.art==='artPaper')return '<div class="p p1"></div><div class="p p2"></div><div class="p p3"></div>';
+  if(tk.art==='artJar')return '<div class="p body"></div><div class="p lid"></div>'
+    +'<div class="p d d1"></div><div class="p d d2"></div><div class="p d d3"></div>'
+    +(lv>=Math.ceil(tk.max/2)?'<div class="p d d4"></div>':'')+(lv>=tk.max?'<div class="p d d5"></div>':'');
+  if(tk.art==='artScis')return '<div class="p b1"></div><div class="p b2"></div><div class="p pin"></div><div class="p h1"></div><div class="p h2"></div>';
+  if(tk.art==='artTwz')return '<div class="p a1"></div><div class="p a2"></div><div class="p joint"></div>'
+    +(lv?'<div class="p g"></div>':'');
+  if(tk.art==='artTear')return '<div class="p p1"></div><div class="p p2"></div><div class="p zig"></div>';
+  if(tk.art==='artKnife')return '<div class="p body"></div><div class="p slider"></div><div class="p blade"></div><div class="p tip"></div>';
+  if(tk.art==='artTape')return '<div class="p ring"></div><div class="p strip"></div>';
+  if(tk.art==='artLens')return '<div class="p ring"></div><div class="p handle"></div>'
+    +(lv?'<div class="p spark">✦</div>':'');
+  if(tk.art==='artTwin')return '<div class="p g1"></div><div class="p g2"></div>';
+  if(tk.art==='artScrap')return '<div class="p s1"></div><div class="p s2"></div><div class="p s3"></div>';
+  if(tk.art==='artDog')return '<div class="p dgsheet"></div><div class="p dgfold"></div>';  // 改名避开全局弹窗类.sheet(否则图标被弹窗padding撑成大白卡)
+  if(tk.art==='artSlow')return '<div class="p body"></div><div class="p liquid"></div><div class="p cap"></div>'
+    +'<div class="p w1"></div><div class="p w2"></div><div class="p w3"></div>';
+  return '';
+}
+function nodeState(id){
+  const tk=TK[id],par=PARENT[id];
+  if(par&&S[par]<1)return 'locked';
+  if(tk.preq&&S[tk.preq.id]<tk.preq.lv)return 'locked';
+  return S[id]>=1?'owned':'fresh';
+}
+const leavesOf=nd=>(nd.c&&nd.c.length)?nd.c.reduce((s,x)=>s+leavesOf(x),0):1;
+function renderDesk(){
+  $('craftMoney').textContent=fmt(album);
+  const cvs=$('treeCanvas');cvs.innerHTML='';
+  cvs.style.width=TREE_W+'px';cvs.style.height=TREE_H+'px';
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.createElementNS(NS,'svg');
+  svg.setAttribute('width',TREE_W);svg.setAttribute('height',TREE_H);
+  svg.id='treeSvg';cvs.appendChild(svg);
+  function place(nd,depth,a0,a1){
+    let a;
+    if(!nd.c||!nd.c.length)a=(a0+a1)/2;
+    else{
+      let cur=a0;const tot=leavesOf(nd),cas=[];
+      nd.c.forEach(ch=>{const span=(a1-a0)*leavesOf(ch)/tot;
+        cas.push(place(ch,depth+1,cur,cur+span));cur+=span;});
+      a=cas.reduce((s,x)=>s+x,0)/cas.length;
+    }
+    nd._a=a;nd._d=depth;return a;
+  }
+  function draw(nd,pxy){
+    const rad=nd._a*Math.PI/180,r=RADS[Math.min(nd._d,RADS.length-1)];
+    const x=TCX+Math.cos(rad)*r,y=TCY+Math.sin(rad)*r*SQUASH;
+    NODE_POS[nd.n]=[x,y];
+    const st=nodeState(nd.n);
+    const line=document.createElementNS(NS,'line');
+    line.setAttribute('x1',pxy[0]);line.setAttribute('y1',pxy[1]);
+    line.setAttribute('x2',x);line.setAttribute('y2',y);
+    let stroke='rgba(255,246,220,.22)',w=2,dashA='7 7';
+    if(st==='owned'){stroke='#F0E2C4';w=4;dashA='';}
+    else if(st==='fresh'){stroke='rgba(255,246,220,.5)';w=2.5;}
+    line.setAttribute('stroke',stroke);line.setAttribute('stroke-width',w);
+    if(dashA)line.setAttribute('stroke-dasharray',dashA);
+    svg.appendChild(line);
+    const tk=TK[nd.n],lv=S[nd.n],maxed=lv>=tk.max;
+    const cost=maxed?0:tk.cost[lv];
+    const can=st!=='locked'&&!maxed&&album>=cost;
+    const el=document.createElement('div');
+    el.className='tnode '+st+(can?' can':'')+(maxed?' max':'')+(selTool===nd.n?' sel':'');
+    el.dataset.id=nd.n;
+    el.style.left=x+'px';el.style.top=y+'px';
+    if(st==='locked'){
+      // 未解锁=虚线占位：不渲染名字/图标/效果（只能看到"下一级"）
+      el.innerHTML='<div class="tcard">?</div><div class="tname">？？？</div>';
+    }else{
+      const badge=maxed?'<div class="tlv">满</div>'
+        :st==='owned'?'<div class="tlv">'+lv+'/'+tk.max+'</div>':'';
+      el.innerHTML='<div class="tcard"><div class="art '+tk.art+'">'+toolArt(tk)+'</div>'+badge+'</div>'
+        +'<div class="tname">'+tk.name+'</div>'
+        +(maxed?'':'<div class="tprice">✦'+fmt(cost)+'</div>');
+    }
+    cvs.appendChild(el);
+    (nd.c||[]).forEach(ch=>draw(ch,[x,y]));
+  }
+  TREE.forEach(br=>{place(br.node,0,br.ang-SECT/2,br.ang+SECT/2);draw(br.node,[TCX,TCY]);});
+  const c=document.createElement('div');
+  c.className='tcenter';c.style.left=TCX+'px';c.style.top=TCY+'px';c.textContent='手工台';
+  cvs.appendChild(c);
+  applyTree();
+}
+function applyTree(){
+  const vp=$('techTree'),vw=vp.clientWidth,vh=vp.clientHeight;
+  const loX=Math.min(vw-TREE_W*tZoom-100,100),hiX=Math.max(vw-TREE_W*tZoom-100,100);
+  const loY=Math.min(vh-TREE_H*tZoom-100,100),hiY=Math.max(vh-TREE_H*tZoom-100,100);
+  tPan.x=Math.max(loX,Math.min(hiX,tPan.x));
+  tPan.y=Math.max(loY,Math.min(hiY,tPan.y));
+  $('treeCanvas').style.transform='translate('+tPan.x+'px,'+tPan.y+'px) scale('+tZoom+')';
+}
+function fitTree(){
+  const vp=$('techTree'),vw=vp.clientWidth,vh=vp.clientHeight;
+  if(!vw||!vh)return;
+  tZoom=Math.max(0.3,Math.min(0.9,Math.min(vw/1500,vh/1050)*1.15));
+  tPan.x=vw/2-TCX*tZoom;tPan.y=vh/2-TCY*tZoom;
+  applyTree();
+}
+function hideBubble(){$('techBubble').classList.remove('show');}
+function bubbleAt(nx,ny){
+  const bub=$('techBubble'),vp=$('techTree');
+  const sx=tPan.x+nx*tZoom,sy=tPan.y+ny*tZoom;
+  const bw=bub.offsetWidth,bh=bub.offsetHeight,half=36*tZoom;
+  let left=sx-half-bw-12,flip=false;
+  if(left<6){left=sx+half+12;flip=true;}
+  const top=Math.max(6,Math.min(vp.clientHeight-bh-6,sy-bh/2));
+  bub.style.left=left+'px';bub.style.top=top+'px';
+  bub.classList.toggle('flip',flip);
+  bub.style.setProperty('--ay',Math.max(14,Math.min(bh-14,sy-top))+'px');
+}
+function showBubble(id){
+  selTool=id;renderDesk();
+  const tk=TK[id],bub=$('techBubble');
+  const st=nodeState(id),lv=S[id],maxed=lv>=tk.max;
+  const cost=maxed?0:tk.cost[lv];
+  const can=st!=='locked'&&!maxed&&album>=cost;
+  let cond='';
+  if(st==='locked'){
+    const need=[];
+    const par=PARENT[id];
+    if(par&&S[par]<1)need.push('「'+TK[par].name+'」至少1级');
+    if(tk.preq&&S[tk.preq.id]<tk.preq.lv)need.push('「'+TK[tk.preq.id].name+'」至少'+tk.preq.lv+'级');
+    cond='<div class="tb-cond lock">🔒 需先：'+need.join('、')+'</div>';
+  }else if(st==='fresh'){
+    cond='<div class="tb-cond ok">✓ 已解锁 · 还没买第一级</div>';
+  }
+  bub.innerHTML='<div class="tb-name"><span>'+(st==='locked'?'？？？':tk.name)+'</span><i>'
+    +(st==='locked'?'未知科技':'Lv.'+lv+'/'+tk.max+' · '+tk.lt(S))+'</i></div>'
+    +'<div class="tb-desc">'+(st==='locked'?'一个还没解锁的科技——先把前面的点亮，它才会显形。':tk.desc)+'</div>'+cond
+    +'<button class="pbtn '+(maxed?'max':(can?'':'off'))+'" id="bubBuy"'+((maxed||!can)?' disabled':'')+'>'
+    +(maxed?'✓ 已满级':(st==='locked'?'🔒 未解锁':'✦ '+fmt(cost)+(lv?' 升级':' 购买')))+'</button>';
+  bub.classList.add('show');
+  const p=NODE_POS[id]||[TCX,TCY];
+  bubbleAt(p[0],p[1]);
+  const btn=$('bubBuy');
+  if(btn&&!btn.disabled){
+    btn.onclick=()=>{
+      const c=tk.cost[S[tk.id]];
+      if(album<c)return;
+      album-=c;S[tk.id]++;LIFE.spent=(LIFE.spent||0)+c;
+      tone(600,.1,'sine',.05);
+      applyTechSide(tk.id);
+      save();updateHUD();checkAch();                           // 成就检测(买科技:花✦/满级/整枝/全满)
+      showBubble(id);
+    };
+  }
+}
+// 购买后的即时副作用（让每个科技当场落地）
+function applyTechSide(id){
+  if(['auto','tweezer','regrow','binder','flowlead','smartcut','smarttwz',
+      'twincut','mechchain','smartbind'].includes(id)&&state==='digging')restartTimers();
+  if(id==='riskknob'){knobSet=Math.min(Math.max(knobSet,1),S.riskknob);}
+  if(id==='knife'&&state==='digging')knifeLeft++;
+  if(id==='crosscut'&&S.crosscut>=3&&state==='digging')knifeLeft++;
+  if(id==='cliff')cliffLeft=S.cliff;
+  if(id==='peek')applyPeek();
+}
+/* 画布交互：拖动/双指缩放/滚轮/点选 */
+(function(){
+  const vp=$('techTree');
+  const pts=new Map();
+  let start=null,last=null,moved=false,pinchD=null,downTarget=null;
+  function zoomAround(px,py,f){
+    const nz=Math.max(0.18,Math.min(1.4,tZoom*f));
+    tPan.x=px-(px-tPan.x)*(nz/tZoom);
+    tPan.y=py-(py-tPan.y)*(nz/tZoom);
+    tZoom=nz;applyTree();
+  }
+  vp.addEventListener('pointerdown',e=>{
+    if(e.target.closest('#techBubble')||e.target.closest('#rebirthNode'))return;  // 转生金节点不被拖拽吞掉
+    vp.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===1){start=last={x:e.clientX,y:e.clientY};moved=false;
+      downTarget=e.target.closest('.tnode');}
+    else{last=null;pinchD=null;hideBubble();}
+    vp.classList.add('dragging');
+  });
+  vp.addEventListener('pointermove',e=>{
+    if(!pts.has(e.pointerId))return;
+    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===1&&last){
+      const dx=e.clientX-last.x,dy=e.clientY-last.y;
+      if(!moved&&Math.hypot(e.clientX-start.x,e.clientY-start.y)>8){moved=true;hideBubble();}
+      if(moved){tPan.x+=dx;tPan.y+=dy;applyTree();}
+      last={x:e.clientX,y:e.clientY};
+    }else if(pts.size===2){
+      const ab=[...pts.values()];
+      const d=Math.hypot(ab[0].x-ab[1].x,ab[0].y-ab[1].y);
+      const r=vp.getBoundingClientRect();
+      if(pinchD)zoomAround((ab[0].x+ab[1].x)/2-r.left,(ab[0].y+ab[1].y)/2-r.top,d/pinchD);
+      pinchD=d;moved=true;
+    }
+  });
+  function up(e){
+    if(!pts.has(e.pointerId))return;
+    pts.delete(e.pointerId);
+    if(pts.size<2)pinchD=null;
+    if(pts.size===1){const p=[...pts.values()][0];start=last={x:p.x,y:p.y};}
+    if(pts.size===0){
+      vp.classList.remove('dragging');
+      if(!moved){
+        if(downTarget&&downTarget.dataset.id)showBubble(downTarget.dataset.id);
+        else hideBubble();
+      }
+      downTarget=null;
+    }
+  }
+  vp.addEventListener('pointerup',up);
+  vp.addEventListener('pointercancel',up);
+  vp.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const r=vp.getBoundingClientRect();
+    hideBubble();
+    zoomAround(e.clientX-r.left,e.clientY-r.top,e.deltaY<0?1.12:0.89);
+  },{passive:false});
+})();
+function openCraft(){
+  craftOpen=true;selTool=selTool||'expand';
+  $('craftPage').classList.add('show');
+  renderDesk();fitTree();updateRebirthNode();
+  if($('unlockBtn'))$('unlockBtn').style.display='none';  // 网页版：解锁全科技金手指永久隐藏（不给网页玩家开挂）
+  showBubble(selTool);
+}
+function closeCraft(){
+  hideBubble();
+  craftOpen=false;$('craftPage').classList.remove('show');
+  if(craftReturnToNewPage&&state==='settle'){craftReturnToNewPage=false;page++;save();newPage();}
+  else if(craftReturnToSettle&&state==='settle'){              // 结算页来的：回到结算页，点"翻到下一页"无缝衔接新科技
+    craftReturnToSettle=false;
+    $('sAlbum').innerHTML='✦ '+fmt(album);                     // 刚买了科技，收藏册数字要刷新
+    show('ovSettle');updateHUD();
+  }
+  else updateHUD();
+}
+$('craftBtn').onclick=()=>{if(state==='digging')openCraft();};
+$('craftBack').onclick=closeCraft;
+
+/* ===================== SEC10 转生系统（装订成册 / 藏书阁 / 典藏卷）2026-07-05 ===================== */
+let selRS=null;                                                // 藏书阁当前选中的转生科技
+const rbEligible=()=>page>=RB_MIN_PAGE&&S.quality>=RB_MIN_QUALITY;   // 装订门槛
+function startGoldAmt(){ return RS.rsStart?Math.ceil(offRate*RB_START_GOLD[RS.rsStart]*300):0; } // 开卷有金启动✦（按近期速率折算、不按存款）
+function updateRebirthNode(){                                  // 手工台里的「装订成册」金节点状态
+  const el=$('rebirthNode');if(!el)return;
+  if(rbEligible()){
+    el.className='rb-node ready';
+    el.innerHTML='<div class="rt">📖 装订成册</div><div class="rss">可换 🎗'+spoolGain(page)+' 典藏卷 · 点我转生</div>';
+  }else{
+    el.className='rb-node locked';
+    el.innerHTML='<div class="rt">📖 装订成册</div><div class="rss">🔒 翻满'+RB_MIN_PAGE+'页 · 解锁到紫纸</div>';
+  }
+}
+function showRebirthConfirm(){                                 // 二次确认：把清空/保留/得到讲清楚
+  if(!rbEligible())return;
+  $('rbGet').innerHTML='典藏卷 <b>+'+spoolGain(page)+'</b> 🎗（本册翻了 '+page+' 页）→ 让下一本从头就更强';
+  $('rbClear').textContent='当前页码回到第 1 页 · 收藏册 ✦ 清零 · 本册常规科技全部退回';
+  $('rbKeep').innerHTML='典藏卷与藏书阁的永久加成 · 累计翻页（排行榜）· 生涯统计 · 设置'
+    +(RS.rsColor?' · <b>已解锁的颜色</b>（留住颜色·已点亮）':'');
+  show('ovRebirth');
+}
+function doRebirth(){                                          // 真正执行转生
+  const gain=spoolGain(page);
+  spool+=gain; rebirths++; LIFE.rebirths=(LIFE.rebirths||0)+1;
+  spoolPeak=Math.max(spoolPeak,spool);checkAch();             // 成就:转生次数/典藏卷峰值
+  const g0=startGoldAmt();                                     // 先用旧速率算好启动✦
+  const keep=RS.rsColor?{quality:S.quality,blue:S.blue,purple:S.purple,gold:S.gold,ember:S.ember,rainbow:S.rainbow}:null;
+  TECHS.forEach(t=>S[t.id]=0);                                 // 清空常规科技
+  if(keep)Object.keys(keep).forEach(k=>S[k]=keep[k]);         // 留住颜色（保留已解锁的颜色浓度）
+  S.expand=Math.max(1,RS.rsExpand);                           // 未拆封大页；并保证≥1，转生后不回到1格教学
+  if(RS.rsBinder)S.binder=1;                                  // 熟练装订工=开局带装订机
+  page=1; album=g0; haul=0;                                   // 重置本册进度（pagesTotal 排行榜不动）
+  retreatStreak=0; combo=0; frenzyUntil=0; doubleUntil=0;
+  bookmarkTier=-1; morningLeft=0; knobSet=0; firstFlipDone=true; rateHist=[]; offRate=0;
+  craftOpen=false; craftReturnToNewPage=false; craftReturnToSettle=false;
+  $('craftPage').classList.remove('show'); hideBubble();
+  state='digging'; newPage(); restartTimers();
+  updateShelfBtn(); save(); updateHUD();
+  openShelf();                                                 // 转生后进书架页
+  toast('📖 装订成册！典藏卷 +'+gain+' 🎗，翻开崭新的一本');
+}
+/* —— 藏书阁（书架页）—— */
+function updateShelfBtn(){ const b=$('shelfBtn'); if(b)b.style.display=(rebirths>0||spool>0)?'':'none'; }
+function renderShelf(){
+  $('spoolCount').textContent=spool;
+  $('rbCount').textContent=rebirths;
+  let sp='';                                                  // 书架：已装订=烫金书脊，后面留空位
+  for(let i=0;i<rebirths;i++)sp+='<div class="spine v1"><div class="big1">'+(i+1)+'</div><div class="lab">典藏</div></div>';
+  const empties=Math.max(2,3-(rebirths%3));
+  for(let i=0;i<empties;i++)sp+='<div class="spine empty"><div class="lab">·</div></div>';
+  $('rbShelf').innerHTML=sp;
+  const tree=$('shelfTree');tree.innerHTML='<div class="rhub">🏛<span>藏书阁</span></div>';
+  RS_TECHS.forEach(t=>{                                        // 方案乙：放射树，节点按角度绕枢纽
+    const rad=t.ang*Math.PI/180,R=39;
+    const x=50+Math.cos(rad)*R, y=50+Math.sin(rad)*R*0.9;
+    const lv=RS[t.id],maxed=lv>=t.max,cost=maxed?0:t.cost[lv],can=!maxed&&spool>=cost;
+    const el=document.createElement('div');
+    el.className='rnode'+(maxed?' maxed':'')+(can?' can':'')+(selRS===t.id?' sel':'');
+    el.style.left=x+'%';el.style.top=y+'%';
+    el.innerHTML='<div class="ric">'+t.ic+'</div><div class="rnm">'+t.name+'</div>'
+      +'<div class="rlv">'+(maxed?'满':lv+'/'+t.max)+'</div>';
+    el.onclick=()=>{selRS=t.id;renderShelf();};
+    tree.appendChild(el);
+  });
+  renderShelfDetail();
+}
+function renderShelfDetail(){
+  const d=$('shelfDetail');if(!d)return;
+  if(!selRS){d.innerHTML='<div class="rd-hint">点上面的烫金节点，用典藏卷 🎗 买永久加成（跨册保留、越转越强）</div>';return;}
+  const t=RSK[selRS],lv=RS[selRS],maxed=lv>=t.max,cost=maxed?0:t.cost[lv],can=!maxed&&spool>=cost;
+  d.innerHTML='<div class="rd-h"><b>'+t.ic+' '+t.name+'</b><i>Lv.'+lv+'/'+t.max+' · '+t.lt(RS)+'</i></div>'
+    +'<div class="rd-desc">'+t.desc+'</div>'
+    +'<button class="pbtn '+(maxed?'max':(can?'':'off'))+'" id="rbBuy"'+((maxed||!can)?' disabled':'')+'>'
+    +(maxed?'✓ 已满级':'🎗 '+cost+' 典藏卷 '+(lv?'升级':'点亮')+(can?'':'（不够）'))+'</button>';
+  const b=$('rbBuy');
+  if(b&&!b.disabled)b.onclick=()=>{
+    const c=t.cost[RS[selRS]];
+    if(spool<c)return;
+    spool-=c;RS[selRS]++;tone(680,.1,'triangle',.05);
+    save();updateHUD();renderShelf();
+  };
+}
+function openShelf(){ selRS=selRS||'rsIncome'; craftOpen=true; $('shelfPage').classList.add('show'); renderShelf(); }  // craftOpen=true→进藏书阁时自动化让路
+function closeShelf(){ craftOpen=false; $('shelfPage').classList.remove('show'); updateHUD(); }
+if($('shelfBack'))$('shelfBack').onclick=closeShelf;
+if($('shelfBtn'))$('shelfBtn').onclick=()=>{if(state==='digging')openShelf();};
+if($('rebirthNode'))$('rebirthNode').onclick=()=>{if(rbEligible())showRebirthConfirm();};
+if($('rbGoBtn'))$('rbGoBtn').onclick=()=>{hide();doRebirth();};
+if($('rbCancelBtn'))$('rbCancelBtn').onclick=()=>hide();
+let resetArm=0;
+$('resetBtn').onclick=()=>{
+  if(Date.now()<resetArm){wipe();location.reload();return;}
+  resetArm=Date.now()+2500;
+  $('resetBtn').textContent='再点一次，确认清空全部进度！';
+  setTimeout(()=>{$('resetBtn').textContent='重置全部进度';},2600);
+};
+/* 本地测试：一键解锁全部科技满级 + 收藏册给满（真TapTap容器里此按钮隐藏，不影响玩家）*/
+$('unlockBtn').onclick=()=>{
+  TECHS.forEach(t=>S[t.id]=t.max);                            // 全科技满级
+  album=Math.max(album,1e15);                                 // 收藏册给一大笔好继续买/测
+  save();renderDesk();updateRebirthNode();
+  if(state==='digging')restartTimers();
+  updateHUD();
+  toast('🔓 全部科技已解锁 · 收藏册给满（测试）');
+};
+/* 特效动画开关（2026-07-05 用户要求）：控制收纳飞行+纸屑粒子，存档记忆 */
+/* 设置面板：音效 / 背景音乐 / 特效动画 三个开关（存档记忆） */
+function renderSettings(){
+  const set=(id,on)=>{const b=$(id);if(b){b.className='toggle '+(on?'on':'off');b.textContent=on?'开':'关';}};
+  set('setSfx',sfxOn);set('setBgm',bgmOn);set('setFx',fxOn);
+}
+$('setBtn').onclick=()=>{renderSettings();show('ovSet');};
+$('setOkBtn').onclick=()=>hide();
+/* 关于作者 · 赞助（网页版）：点侧栏按钮弹窗，赞助按钮跳爱发电 */
+if($('authorBtn'))$('authorBtn').onclick=()=>show('ovAuthor');
+if($('authorGoBtn'))$('authorGoBtn').onclick=()=>{try{window.open('https://ifdian.net/a/DNAHAN','_blank','noopener');}catch(e){location.href='https://ifdian.net/a/DNAHAN';}};
+if($('authorCloseBtn'))$('authorCloseBtn').onclick=()=>hide();
+/* 存档备份（网页版）：导出=下载存档文件到电脑；导入=从文件恢复（换设备/清缓存不丢档）*/
+function exportSave(){
+  const data=localStorage.getItem(SAVE_KEY);
+  if(!data){toast('还没有存档可导出，先玩两页~');return;}
+  try{
+    const blob=new Blob([data],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const d=new Date(),p=n=>('0'+n).slice(-2);
+    const stamp=d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes());
+    const a=document.createElement('a');a.href=url;a.download='无限剪纸存档_'+stamp+'.txt';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{try{document.body.removeChild(a);URL.revokeObjectURL(url);}catch(e){}},200);
+    toast('📤 存档已导出，存到你的“下载”文件夹了');
+  }catch(e){toast('导出失败，换个浏览器试试');}
+}
+function importSave(text){
+  let d;
+  try{d=JSON.parse(text);}catch(e){toast('❌ 文件不对：不是有效的存档');return;}
+  if(!d||typeof d!=='object'||!(d.S||d.v===3)){toast('❌ 这不像是《无限剪纸》的存档');return;}
+  if(!confirm('导入会覆盖你当前的进度，确定要恢复这个存档吗？'))return;
+  try{stopTimers();}catch(e){}                     // 停挂机定时器，防重载前又自动存档把导入覆盖掉
+  try{localStorage.setItem(SAVE_KEY,text);}catch(e){toast('❌ 导入失败');return;}
+  toast('📥 导入成功，正在重新载入…');
+  setTimeout(()=>location.reload(),600);
+}
+if($('expSaveBtn'))$('expSaveBtn').onclick=exportSave;
+if($('impSaveBtn'))$('impSaveBtn').onclick=()=>{const f=$('impSaveFile');if(f)f.click();};
+if($('impSaveFile'))$('impSaveFile').onchange=function(e){
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{importSave(String(r.result||''));try{e.target.value='';}catch(_){}};
+  r.onerror=()=>{toast('❌ 读文件失败');try{e.target.value='';}catch(_){}};
+  r.readAsText(f);
+};
+$('setSfx').onclick=()=>{sfxOn=!sfxOn;save();renderSettings();if(sfxOn){AC();pop(680,.08);}};   // 开时来一声试音
+$('setBgm').onclick=()=>{bgmOn=!bgmOn;save();renderSettings();if(bgmOn){AC();startBGM();}else stopBGM();};
+function applyFx(){document.body.classList.toggle('nofx',!fxOn);}  // 关特效同时停掉晶体摆动
+$('setFx').onclick=()=>{fxOn=!fxOn;save();renderSettings();applyFx();};
+/* ===================== SEC8 HUD 与界面 ===================== */
+function show(id){document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show'));if(id)$(id).classList.add('show');}
+const hide=()=>show(null);
+let tipHold=0;
+function setTip(s){$('tip').innerHTML=s;}
+function setTipOnce(s){tipHold=Date.now()+1500;setTip(s);}
+function defaultTip(){
+  if(state!=='digging')return '';
+  if(!hasGlue)return '揭开纸片，露出的纸晶再点一下捏进口袋';
+  if(!pageStarted)return '<b>不急。</b>没动手前，步数不走';
+  const g=nextGlue();
+  if(g===100)return '安全步数内 · 放心揭';
+  if(g<=0)return '<b>下一步必散！</b>（揭和捏都算步）快收手';
+  return '<b>下一步 '+(100-g)+'% 会散</b>（揭和捏都算步）。晾着的晶越晚捏越值——赌吗？';
+}
+function updateHUD(){
+  $('pageNum').textContent=page;
+  $('haulVal').textContent=fmtF(haul);
+  $('albumVal').textContent=fmt(album);
+  const g=Math.round(curGlue());
+  $('glueV').textContent=hasGlue?g+'%':'—';
+  $('glueV').parentElement.style.color=g===100?'var(--good)':g>=70?'var(--warn)':'var(--crit)';
+  $('multV').textContent='×'+curMult().toFixed(2);
+  const total=safeSteps()+Math.ceil(100/GLUE_DROP);
+  $('tapeFill').style.width=(hasGlue?(pageStarted?Math.min(100,steps/total*100):0):0)+'%';
+  $('tapeFill').style.background=g===100?'var(--good)':g>=70?'var(--warn)':'var(--crit)';
+  $('tapeMark').style.left=(hasGlue?safeSteps()/total*100:50)+'%';
+  const ng=nextGlue();
+  $('tapeSub').textContent=!hasGlue?'这一页还没有胶力机制（升级纸页后开启）'
+    :('已走 '+steps+' 步'+(ng<100?' · 已越过安全线':''));
+  const remain=Math.max(0,safeSteps()-steps);
+  const safeCard=$('safeV').parentElement;
+  if(!hasGlue){$('safeV').textContent='—';
+    $('safeSub').textContent='升级纸页后开启胶力机制';safeCard.style.color='var(--mute)';}
+  else if(remain>0){$('safeV').textContent=remain;
+    $('safeSub').textContent=pageStarted?'走完就进风险区（揭和捏都算）':'没动手前不消耗';
+    safeCard.style.color=remain<=2?'var(--warn)':'var(--good)';}
+  else{$('safeV').textContent='0';
+    $('safeSub').textContent='已入风险区！下一步 '+(100-ng)+'% 会散';
+    safeCard.style.color='var(--crit)';}
+  $('collectBtn').classList.toggle('urgent',state==='digging'&&hasGlue&&pageStarted&&g<80);
+  $('collectBtn').disabled=state!=='digging';
+  $('knifeBtn').style.display=(S.knife&&state==='digging')?'':'none';
+  $('knifeN').textContent=knifeLeft;
+  $('knobBtn').style.display=(S.riskknob&&state==='digging')?'':'none';
+  $('knobV').textContent=knobSet;
+  const bt=$('binderToggle');                                 // 自动装订开关（左上角，装订机买了才显示）
+  bt.style.display=(S.binder>=1&&state==='digging')?'block':'none';
+  bt.className=binderAuto?'':'off';
+  bt.textContent='🔗 自动装订 '+(binderAuto?'开':'关');
+  $('comboRow').style.display=S.combo?'flex':'none';
+  $('comboVal').textContent=combo;
+  if(state==='digging'&&Date.now()>tipHold)setTip(defaultTip());
+}
+/* 风险旋钮：点击循环 0→上限 */
+$('knobBtn').onclick=()=>{
+  knobSet=(knobSet+1)%(S.riskknob+1);
+  $('knobV').textContent=knobSet;
+  toast(knobSet?('🎛 自动化将替你贪到第 '+knobSet+' 风险步'):'🎛 自动化只走安全区');
+  updateHUD();
+};
+/* 自动装订开关（画面左上角）：随时开/关自动收册翻页 */
+$('binderToggle').onclick=()=>{
+  binderAuto=!binderAuto;save();updateHUD();
+  toast(binderAuto?'🔗 自动装订已开——满了自动收册翻页':'🔗 自动装订已关——页面你自己收，机器只帮揭/捏');
+};
+/* 生涯统计（纸匠日志） */
+function showStats(){
+  // 基础篇人人可见（2026-07-05 用户要求"整体统计"）；纸匠日志科技解锁详细篇
+  const rows=[
+    ['累计翻页',fmt(pagesTotal)],['揭开纸片',fmt(LIFE.reveals)],
+    ['捏起纸晶',fmt(LIFE.picks)],['散架次数',fmt(LIFE.shatters)],
+  ];
+  TIERS.forEach((t,i)=>rows.push(['<i class="lgdot" style="background:'+t.c+'"></i>'+t.name+'晶收集',fmt(colorTotals[i])]));
+  if(S.diary){
+    rows.push(['最肥一页','✦ '+fmt(LIFE.bestPage)],['科技投入','✦ '+fmt(LIFE.spent||0)],
+      ['最高连击',fmt(LIFE.bestCombo)+' 层'],['悬崖勒马救回',fmt(LIFE.cliffSaves)+' 次'],
+      ['双黄 / 三黄',fmt(LIFE.twins)+' / '+fmt(LIFE.tris)],['顺风信拆了',fmt(LIFE.envOpened)+' 封'],
+      ['离线装订入账','✦ '+fmt(LIFE.offGain)],['看过广告',fmt(LIFE.ads)+' 次'],
+      ['连续登录',loginStreak+' 天']);
+  }
+  $('lifeGrid').innerHTML=rows.map(r=>'<div class="lg"><div class="k">'+r[0]+'</div><div class="v">'+r[1]+'</div></div>').join('');
+  $('statsLock').style.display=S.diary?'none':'block';
+  show('ovStats');
+}
+$('diaryBtn').onclick=showStats;
+$('statsOkBtn').onclick=()=>hide();
+/* ===================== SEC11 成就（手工纪念册）2026-07-06 =====================
+   全部纪念徽章、无数值奖励(保数值收口)。达成即锁(achDone布尔·绝不掉档)。
+   门槛/名称调整只动本 ACHS 表；TapTap同步在解锁时调 TAP.ach(id, 分步?目标:0)，
+   成就ID与后台自建的一致即对上(用户按预览页的ID建)。cur()=当前进度值，t=目标，st=分步(1)/二元(0)，hid=隐藏。*/
+const ACHS=[
+ {id:'PAGES_TOTAL', ic:'📖', n:'册页渐丰',   d:'累计翻页 1000',        st:1,t:1000,      cur:()=>pagesTotal},
+ {id:'COLOR_UNLOCK',ic:'🎨', n:'新纸样·染开',d:'解锁到彩纸',          st:1,t:5,         cur:()=>S.quality},
+ {id:'EXPAND_MAX',  ic:'🗒️',n:'满页江山',   d:'加大纸页满级·240格',   st:0,t:1,         cur:()=>S.expand>=60?1:0},
+ {id:'LUCK_MAX',    ic:'🍀', n:'纸屑不落空', d:'幸运纸屑满级·出晶100%',st:0,t:1,         cur:()=>S.luck>=15?1:0},
+ {id:'ALBUM_STOCK', ic:'💰', n:'册满盈仓',   d:'收藏册存量达100万✦',   st:1,t:1000000,   cur:()=>album},
+ {id:'TECH_SPENT',  ic:'🛠️',n:'半生心血喂科技',d:'累计花1亿✦',       st:1,t:100000000, cur:()=>LIFE.spent||0},
+ {id:'BRANCH_MAX',  ic:'🌿', n:'一枝到底',   d:'任一整枝全满级',       st:0,t:1,         cur:()=>branchMaxed()},
+ {id:'ALL_TECH_MAX',ic:'🏆', n:'装订大成',   d:'全部科技满级',         st:0,t:1,hid:1,   cur:()=>allTechMaxed()},
+ {id:'COMBO_BEST',  ic:'🔗', n:'连击成川',   d:'历史最高连击100层',    st:1,t:100,       cur:()=>LIFE.bestCombo},
+ {id:'TWINS',       ic:'🥚', n:'双黄临门',   d:'双黄蛋200次',          st:1,t:200,       cur:()=>LIFE.twins},
+ {id:'TRIS',        ic:'🍳', n:'三黄齐鸣',   d:'三黄蛋80次',           st:1,t:80,        cur:()=>LIFE.tris},
+ {id:'CLIFF_SAVE',  ic:'😅', n:'有惊无险',   d:'悬崖勒马救回80次',     st:1,t:80,        cur:()=>LIFE.cliffSaves},
+ {id:'BEST_PAGE',   ic:'⭐', n:'一页封神',   d:'单页入册100万✦',       st:1,t:1000000,   cur:()=>LIFE.bestPage},
+ {id:'COLOR_GREEN', ic:'🟩', n:'青绿满架',   d:'绿晶2000颗',           st:1,t:2000,      cur:()=>colorTotals[0]},
+ {id:'COLOR_BLUE',  ic:'🟦', n:'蓝调渐浓',   d:'蓝晶1500颗',           st:1,t:1500,      cur:()=>colorTotals[1]},
+ {id:'COLOR_PURPLE',ic:'🟪', n:'紫气盈册',   d:'紫晶1000颗',           st:1,t:1000,      cur:()=>colorTotals[2]},
+ {id:'COLOR_GOLD',  ic:'🟨', n:'金黄满架',   d:'黄晶600颗',            st:1,t:600,       cur:()=>colorTotals[3]},
+ {id:'COLOR_EMBER', ic:'🟧', n:'橙晖满架',   d:'橙晶300颗',            st:1,t:300,       cur:()=>colorTotals[4]},
+ {id:'COLOR_RAINBOW',ic:'🌈',n:'压卷一彩',   d:'彩晶60颗',             st:1,t:60,        cur:()=>colorTotals[5]},
+ {id:'COLOR_ALL',   ic:'🖼️',n:'集邮全开',   d:'六色都捏过',           st:0,t:1,         cur:()=>colorTotals.every(v=>v>=1)?1:0},
+ {id:'REVEALS',     ic:'✋', n:'揭到手软',   d:'揭纸片5000张',         st:1,t:5000,      cur:()=>LIFE.reveals},
+ {id:'PICKS',       ic:'🤏', n:'捏晶入魂',   d:'捏晶3000颗',           st:1,t:3000,      cur:()=>LIFE.picks},
+ {id:'SHATTERS',    ic:'💥', n:'散架艺术家', d:'累计散架100次',        st:1,t:100,       cur:()=>LIFE.shatters},
+ {id:'RETREAT_STREAK',ic:'🎀',n:'收手连胜', d:'连续收册20页',         st:1,t:20,        cur:()=>LIFE.retreatBest||0},
+ {id:'BRAVADO_MAX', ic:'🔥', n:'破釜沉舟',   d:'破釜沉舟满级·上限×4',  st:0,t:1,         cur:()=>S.bravado>=8?1:0},
+ {id:'DEEPDIVE_MAX',ic:'🩸', n:'险到极致',   d:'深潜三叠纸满级·险区×6',st:0,t:1,         cur:()=>S.deepdive>=4?1:0},
+ {id:'RISK_PICKS',  ic:'🎢', n:'险区常客',   d:'深险区捏晶500颗',      st:1,t:500,       cur:()=>LIFE.deepRiskPicks||0},
+ {id:'REBIRTH',     ic:'📚', n:'再装一册',   d:'完成转生3次',          st:1,t:3,         cur:()=>rebirths},
+ {id:'SPOOL_PEAK',  ic:'🎗️',n:'典藏卷不舍得花',d:'典藏卷囤20卷',      st:1,t:20,        cur:()=>spoolPeak},
+ {id:'ENVELOPES',   ic:'✉️',n:'顺风信老主顾',d:'拆顺风信50封',        st:1,t:50,        cur:()=>LIFE.envOpened},
+ {id:'OFFLINE_GAIN',ic:'🌛', n:'熬夜装订工', d:'离线收益10万✦',        st:1,t:100000,    cur:()=>LIFE.offGain},
+ {id:'ADS_WATCHED', ic:'📺', n:'广告老朋友', d:'看广告100次',          st:1,t:100,       cur:()=>LIFE.ads},
+ {id:'LOGIN_STREAK',ic:'📅', n:'天天来翻页', d:'连续登录7天',          st:1,t:7,         cur:()=>LIFE.loginBest||0},
+ {id:'EMPTY_FLIPS', ic:'🕳️',n:'这页是白翻的',d:'空手翻页10次',        st:1,t:10,hid:1,  cur:()=>LIFE.emptyFlips||0},
+ {id:'RAINBOW_CELL',ic:'🎆', n:'手一抖，满堂彩',d:'触发彩色格10次',    st:1,t:10,hid:1,  cur:()=>LIFE.rainbowCells||0},
+ {id:'MIDNIGHT',    ic:'🌙', n:'月光下的剪纸人',d:'深夜翻页10次',      st:1,t:10,hid:1,  cur:()=>LIFE.midnightFlips||0},
+ {id:'BRINK_PICK',  ic:'⚡', n:'千钧一发',   d:'濒危捏晶10次',         st:1,t:10,hid:1,  cur:()=>LIFE.brinkPicks||0},
+];
+const ACH_CATS=[['📖 进度 · 里程碑',8],['✂️ 手艺 · 连击',5],['🎨 收藏 · 集邮',9],['⚖️ 贪与收 · 险境',5],['🎗 转生 · 长线',6],['🕵️ 趣味 · 隐藏',4]];
+function branchMaxed(){return TREE.some(br=>{let all=true;(function w(nd){if(S[nd.n]<TK[nd.n].max)all=false;(nd.c||[]).forEach(w);})(br.node);return all;})?1:0;}
+function allTechMaxed(){return TECHS.every(t=>S[t.id]>=t.max)?1:0;}
+let achToastQ=[];
+function checkAch(silent){                                     // 事件驱动检测(不做逐帧轮询)：更新峰值→逐条查未解锁的够没够；silent=载入时静默补齐(不弹toast)
+  spoolPeak=Math.max(spoolPeak,spool);
+  LIFE.loginBest=Math.max(LIFE.loginBest||0,loginStreak);
+  LIFE.retreatBest=Math.max(LIFE.retreatBest||0,retreatStreak);
+  let changed=false;
+  for(const a of ACHS){ if(achDone[a.id])continue; try{ if(a.cur()>=a.t){achDone[a.id]=1;changed=true;onAchUnlock(a,silent);} }catch(e){} }
+  if(changed)save();
+}
+function onAchUnlock(a,silent){ if(!silent)achToast(a); try{TAP.ach(a.id,a.st?a.t:0);}catch(e){} }
+function achToast(a){ achToastQ.push(a); if(achToastQ.length===1)runAchToast(); }
+function runAchToast(){
+  const a=achToastQ[0];if(!a){return;}const el=$('achToast');if(!el){achToastQ.shift();return;}
+  el.innerHTML='<div class="at-b">'+a.ic+'</div><div class="at-t"><div class="at-k">🏅 解锁成就</div><div class="at-n">'+a.n+'</div></div>';
+  el.classList.add('show');
+  if(sfxOn){try{tone(880,0.45,'triangle',0.22);tone(1320,0.45,'sine',0.11);}catch(e){}}
+  setTimeout(()=>{el.classList.remove('show');setTimeout(()=>{achToastQ.shift();runAchToast();},420);},2600);
+}
+function showAch(){                                            // 手工纪念册面板
+  spoolPeak=Math.max(spoolPeak,spool);LIFE.loginBest=Math.max(LIFE.loginBest||0,loginStreak);LIFE.retreatBest=Math.max(LIFE.retreatBest||0,retreatStreak);
+  const done=ACHS.filter(a=>achDone[a.id]).length;
+  $('achSum').innerHTML='已解锁 <b>'+done+'</b> / '+ACHS.length+' 枚';
+  let html='',idx=0;
+  ACH_CATS.forEach(pair=>{
+    const cn=pair[0],cntn=pair[1];
+    html+='<div class="ach-cat">'+cn+'</div><div class="achgrid">';
+    for(let k=0;k<cntn;k++){const a=ACHS[idx++];const ok=!!achDone[a.id];const secret=a.hid&&!ok;
+      const cur=Math.min(a.cur(),a.t);
+      html+='<div class="ac-card'+(ok?' ok':'')+(secret?' secret':'')+'">'
+        +'<div class="ac-b">'+(secret?'❓':a.ic)+'</div>'
+        +'<div class="ac-i"><div class="ac-n">'+(secret?'？？？':a.n)+'</div>'
+        +'<div class="ac-d">'+(secret?'隐藏成就 · 达成后揭晓':a.d)+'</div>'
+        +(ok?'<div class="ac-s okk">✓ 已解锁</div>':(secret?'':'<div class="ac-s">'+fmt(cur)+' / '+fmt(a.t)+'</div>'))
+        +'</div></div>';
+    }
+    html+='</div>';
+  });
+  $('achList').innerHTML=html;
+  show('ovAch');
+}
+function openAchWall(){                                        // 🏅纪念册按钮：真容器→弹TapTap官方原生成就墙；电脑/网页→弹自绘剪纸风纪念册(预览+兜底)
+  if(!TAP.live()){showAch();return;}
+  const go=function(){ if(!TAP.openAch())showAch(); };         // 官方成就墙打不开(未同步/无此能力)则退回自绘
+  if(isLoggedIn()){go();return;}
+  toast('正在连接 TapTap…');                                   // 成就墙按TapTap账号显示：先登录再弹
+  TAP.login(function(u){ if(u){tapId=u.id;tapNick=u.nick;tapAvatar=u.avatar;renderLogin();save();go();} else showAch(); });
+}
+if($('achBtn'))$('achBtn').onclick=openAchWall;
+if($('achOkBtn'))$('achOkBtn').onclick=()=>hide();
+/* ===================== TapTap 接入层（照《无限工厂》已上线真代码；容器内自动真接口，容器外自动模拟） =====================
+   决定（2026-07-05 用户）：排行榜主榜=累计翻页数 pagesTotal；TapTap 托管排行榜、零后端（剪贴册无需可信openid）。
+   —— 真接口按无限工厂 taptap-login.js / taptap-leaderboard.js 的真签名接好：
+      tap.login({success,fail}) 建会话；tap.getLeaderboardManager().submitScores / openLeaderboard。
+   —— 懒探测全局 tap（创意工坊容器注入，可能晚一拍）；探不到=本机/网页=自动模拟，无需手动切换。
+   —— 真机若接口有出入，只改这一块（以官方「小游戏 JS API」手册为准）。详见 参考/TapTap接入方案_核实版.md。 */
+const TAP_LB_ID='qswx7go978nav0s1p7';                          // 排行榜ID（2026-07-05 用户提供）
+function tapSDK(){try{if(typeof tap!=='undefined'&&tap&&tap.login)return tap;}catch(e){}return null;}
+function tapLB(){try{const a=tapSDK();if(a&&a.getLeaderboardManager)return a.getLeaderboardManager();}catch(e){}return null;}
+let tapSubmitted=-1;                                           // 同分不重复提交（省调用）
+let tapAchMgr=null;                                            // 成就管理器（懒建）
+const TAP={
+  live(){return !!tapSDK();},                                 // 真容器内=true；本机/网页=false（自动切模拟）
+  login(cb){
+    const a=tapSDK();
+    if(a){                                                     // 真：tap.login 建立 TapTap 会话（原生榜按此账号记分）
+      try{a.login({success:function(){cb({id:'tap',nick:'TapTap 玩家',avatar:'✂'});},
+                   fail:function(){cb(null);}});}catch(e){cb(null);}
+      return;
+    }
+    const nm=['剪纸师傅','折角小匠','贴贴达人','手工控','纸页旅人','翻页机器'];  // 模拟：造假身份走通整条 UI
+    cb({id:'sim_'+(Date.now()%1e6),nick:nm[Math.random()*nm.length|0]+(10+(Math.random()*89|0)),avatar:'✂'});
+  },
+  submit(score){
+    const m=tapLB();
+    if(m&&m.submitScores){                                     // 真：提交到 TapTap 托管榜（同分不重复）
+      const s=Math.max(0,Math.floor(score||0));
+      if(s===tapSubmitted)return;
+      try{m.submitScores({scores:[{leaderboardId:TAP_LB_ID,score:s}],
+        callback:{onSuccess:function(){tapSubmitted=s;},onFailure:function(){}}});}catch(e){}
+    }                                                          // 模拟：no-op
+  },
+  openNative(){                                                // 真：弹 TapTap 官方原生榜单（公开榜）+ 超时/失败诊断，避免"点了没反应"
+    const m=tapLB();
+    if(!(m&&m.openLeaderboard))return false;
+    let done=false;
+    const timer=setTimeout(function(){if(!done)toast('排行榜没反应·可能榜还没开放或未登录，稍后再试');},2500);
+    try{m.openLeaderboard({leaderboardId:TAP_LB_ID,collection:'public',callback:{
+      onSuccess:function(){done=true;clearTimeout(timer);},
+      onFailure:function(code,msg){done=true;clearTimeout(timer);toast('排行榜打不开'+(code!=null?('·错误码'+code):'')+(msg?('·'+msg):''));}
+    }});}catch(e){clearTimeout(timer);return false;}
+    return true;
+  },
+  ach(id,steps){                                              // 成就同步：分步→按目标increment一次性达成；二元→unlock；容器外自动no-op（照taptap接入技能）
+    try{const a=tapSDK();if(!a||!a.createAchievementManager)return;
+      if(!tapAchMgr)tapAchMgr=a.createAchievementManager({toastEnable:false});  // 游戏内已有自绘徽章toast，关掉SDK自带toast
+      if(steps>0)tapAchMgr.incrementAchievement({achievementId:id,steps:steps});
+      else tapAchMgr.unlockAchievement({achievementId:id});
+    }catch(e){}
+  },
+  openAch(){                                                  // 弹 TapTap 官方原生成就墙（showAchievements，照taptap接入技能）；返回是否真打开
+    try{const a=tapSDK();if(!a||!a.createAchievementManager)return false;
+      if(!tapAchMgr)tapAchMgr=a.createAchievementManager({toastEnable:false});
+      if(!tapAchMgr.showAchievements)return false;
+      tapAchMgr.showAchievements();return true;
+    }catch(e){return false;}
+  },
+  mockList(myScore,myNick){                                    // 模拟榜数据（本机/网页预览用，无后端拉不到真名次）
+    const bots=[['翻页狂魔',4200],['剪不停手',3100],['贴册元老',2050],['夜猫剪纸',1380],['周末手工',760],['新手贴贴',210]];
+    const list=bots.map(b=>({nick:b[0],score:b[1],me:false}));
+    list.push({nick:myNick,score:myScore,me:true});
+    list.sort((a,b)=>b.score-a.score);
+    return list.map((x,i)=>Object.assign({},x,{rank:i+1}));
+  }
+};
+function isLoggedIn(){return !!tapId;}
+function renderLogin(){
+  const b=$('loginBtn');if(!b)return;
+  if(isLoggedIn()){b.classList.add('done');
+    b.innerHTML='<span class="lg-av">'+(tapAvatar||'✂')+'</span><span class="lg-nm">'+tapNick+'</span>';}
+  else{b.classList.remove('done');
+    b.innerHTML='<span class="lg-av">✂</span><span class="lg-nm">贴上我的名字（TapTap 登录）</span>';}
+}
+function doLogin(){
+  if(isLoggedIn())return;                                     // 已登录暂不做切换账号
+  TAP.login(u=>{
+    if(!u)return;
+    tapId=u.id;tapNick=u.nick;tapAvatar=u.avatar;
+    renderLogin();save();toast('✂ 已登录：'+tapNick);
+    lastSubmit=0;submitScore();                               // 登录后立刻交一次当前分
+  });
+}
+function submitScore(){
+  if(!isLoggedIn())return;
+  const t=Date.now();
+  if(t-lastSubmit<30000)return;                               // 节流：最多30秒交一次（省免费额度）
+  lastSubmit=t;TAP.submit(pagesTotal);
+}
+function showMockBoard(){                                      // 本机/网页：剪纸风模拟榜
+  const list=TAP.mockList(pagesTotal,isLoggedIn()?tapNick:'你（未登录）');
+  $('boardList').innerHTML=list.slice(0,20).map(x=>
+    '<div class="bd-row'+(x.me?' me':'')+'">'
+    +'<span class="bd-rk">'+(x.rank<=3?['🥇','🥈','🥉'][x.rank-1]:x.rank)+'</span>'
+    +'<span class="bd-nm">'+x.nick+'</span>'
+    +'<span class="bd-sc">'+fmt(x.score)+' 页</span></div>').join('');
+  show('ovBoard');
+}
+function openBoard(){
+  if(!TAP.live()){showMockBoard();return;}                    // 本机/网页 → 模拟榜
+  // 真容器：官方原生榜（需登录态）——没登录先登录、成功再弹，全程有反馈，不再"点了没反应"
+  const openIt=function(){if(!TAP.openNative())toast('排行榜暂不可用，稍后再试');};
+  if(isLoggedIn()){openIt();return;}
+  toast('正在连接 TapTap…');
+  TAP.login(function(u){
+    if(u){tapId=u.id;tapNick=u.nick;tapAvatar=u.avatar;renderLogin();save();openIt();}
+    else toast('需要登录 TapTap 才能看排行榜');
+  });
+}
+$('loginBtn').onclick=doLogin;
+$('boardBtn').onclick=openBoard;
+$('boardOkBtn').onclick=()=>hide();
+/* 看广告·双倍收益（5分钟，可续时；收益翻倍落在 gemGain 的乘区） */
+function dblActive(){return Date.now()<doubleUntil;}
+function renderDblBtn(){
+  const b=$('dblBtn');if(!b)return;
+  if(dblActive()){
+    const s=Math.max(0,Math.ceil((doubleUntil-Date.now())/1000));
+    b.classList.add('on');
+    b.innerHTML='🔥 双倍中 '+Math.floor(s/60)+':'+('0'+(s%60)).slice(-2)+'<small>再看广告可续时</small>';
+  }else{
+    b.classList.remove('on');
+    b.innerHTML='📺 看广告 · 双倍收益5分钟<small>本页与挂机收益翻倍</small>';
+  }
+}
+function startDblTicker(){
+  if(dblTimer)return;
+  dblTimer=setInterval(function(){
+    renderDblBtn();
+    if(!dblActive()){clearInterval(dblTimer);dblTimer=null;toast('双倍收益结束');}
+  },1000);
+}
+$('dblBtn').onclick=function(){
+  if(state==='start')return;
+  playAd(function(){
+    doubleUntil=Math.max(Date.now(),doubleUntil)+5*60000;      // 每次 +5 分钟，可叠加
+    const cap=Date.now()+60*60000;if(doubleUntil>cap)doubleUntil=cap;  // 最多囤到 1 小时
+    save();renderDblBtn();startDblTicker();updateHUD();
+    toast('🔥 双倍收益 5 分钟！');
+  });
+};
+/* ===================== TapTap 激励视频广告（照《万物工厂》上线代码；容器内真广告，容器外模拟） =====================
+   广告位 ID = 1054323（横屏激励视频；2026-07-05 用户验证：通用可复用）。
+   看完(res.isEnded)才发奖；没看完/中途关/没加载好 → 不发奖、复位重试。
+   容器外(本机/网页)或未配广告位 → 自动回退 3 秒模拟广告→发奖，保持本地可玩、断网可用。
+   广告免疫奖=连续3天登录，当天首个广告直通免看。四个广告位（顺风信/透明胶带/复写纸/离线翻倍）都走这一个 playAd。 */
+const TAP_AD_UNIT='1054323';                                  // 横屏激励视频广告位（2026-07-05 用户验证：通用可复用）
+let adBusy=false,tapAd=null,adRewardCb=null,adSkipCb=null;     // adBusy：广告播放中→装订机自动翻页让路
+function hasTapAd(){return typeof tap!=='undefined'&&tap&&typeof tap.createRewardedVideoAd==='function';}
+function initTapAd(){                                          // 懒初始化：只在真容器+已配广告位时建
+  if(tapAd||!hasTapAd()||!TAP_AD_UNIT||TAP_AD_UNIT==='REPLACE_WITH_AD_UNIT_ID')return;
+  try{
+    tapAd=tap.createRewardedVideoAd({adUnitId:TAP_AD_UNIT});
+    tapAd.onError(()=>{});
+    tapAd.onClose(res=>{
+      adBusy=false;AC();if(bgmOn)startBGM();               // 广告结束 → 唤醒音频 + 恢复BGM
+      const ended=res&&res.isEnded,rw=adRewardCb,sk=adSkipCb;
+      adRewardCb=null;adSkipCb=null;
+      if(ended){if(rw)rw();}else if(sk)sk();                  // 看完才发奖，否则复位重试
+    });
+    const p=tapAd.load&&tapAd.load();                         // 预加载（播完自动续加载）
+    if(p&&typeof p.catch==='function')p.catch(()=>{});
+  }catch(e){tapAd=null;}
+}
+function playAd(onDone,onSkip){
+  // —— 网页版：无 TapTap 广告平台 → 广告不可用（激励视频逻辑已停用，看广告类奖励位不再发奖）——
+  // toast('本网页版暂无广告 ~ 感谢理解');
+  if(onSkip)onSkip();
+  return;
+  const today=new Date().toDateString();
+  if(S.adfree&&loginStreak>=3&&adFreeDay!==today){            // 广告免疫奖：当天首个直通免看
+    adFreeDay=today;save();
+    toast('🎁 广告免疫奖：今天首个广告直接领！');
+    onDone();return;
+  }
+  LIFE.ads++;checkAch();                                       // 成就:看广告
+  stopBGM();                                                  // 放广告前先停BGM，别和广告抢声道
+  const afterAd=()=>{AC();if(bgmOn)startBGM();};            // 广告结束统一唤醒音频+恢复BGM
+  initTapAd();                                                // SDK 晚注入也补得上
+  if(tapAd){                                                  // 真容器+已配广告位 → 放真激励视频
+    adRewardCb=onDone;adSkipCb=onSkip||function(){};adBusy=true;
+    try{
+      const p=tapAd.show();
+      if(p&&typeof p.catch==='function')p.catch(()=>{adBusy=false;afterAd();const sk=adSkipCb;adRewardCb=null;adSkipCb=null;toast('广告没准备好，再试一次');if(sk)sk();});
+      return;
+    }catch(e){adBusy=false;afterAd();adRewardCb=null;adSkipCb=null;if(onSkip)onSkip();return;}
+  }
+  adBusy=true;                                                // 回退：本机/网页/未配广告位 → 3秒模拟广告→发奖
+  let n=3;$('adCnt').textContent=n;show('ovAd');
+  const iv=setInterval(()=>{
+    n--;
+    if(n<=0){clearInterval(iv);adBusy=false;hide();afterAd();onDone();}
+    else $('adCnt').textContent=n;
+  },1000);
+}
+try{initTapAd();}catch(e){}                                   // 启动预加载一次（未配广告位/非容器=no-op）
+/* 顺风信（广告位④）：漂浮信封，拆开=看广告，领"近5页平均入册×ENV_PAGES"直接入册 */
+function spawnEnv(){
+  const today=new Date().toDateString();
+  if(envDay!==today){envDay=today;envUsed=0;}                  // 跨天自动重置
+  if(envUsed>=ENV_DAILY)return;                                // 今日10封已领完
+  const e=$('floatEnv');
+  e.style.left=(18+Math.random()*56)+'%';                      // 飘在纸页上方留白带，不挡格子
+  e.style.top=(4+Math.random()*9)+'%';
+  e.classList.add('show');
+  clearTimeout(envHideT);
+  envHideT=setTimeout(()=>{e.classList.remove('show');},ENV_STAY*1000);
+}
+function envReward(){                                          // 挂"近5页平均入册"而非收藏册比例（防囤钱白拿）
+  const base=rateHist.length?rateHist.reduce((a,x)=>a+x.b,0)/rateHist.length:Math.max(1,lastGain);
+  return Math.ceil(Math.max(base*ENV_PAGES,ENV_MIN));
+}
+$('floatEnv').onclick=()=>{
+  if(state==='start')return;
+  const r=envReward();                                        // 先锁定金额，所见即所得
+  $('envReward').textContent='✦ '+fmt(r);
+  $('envAdBtn').onclick=()=>{                                 // 玩家确认 → 看广告 → 发奖
+    hide();$('floatEnv').classList.remove('show');clearTimeout(envHideT);
+    playAd(()=>{
+      album+=r;envUsed++;LIFE.envOpened++;envDay=new Date().toDateString();
+      checkAch();                                              // 成就:顺风信
+      save();updateHUD();toast('✉ 顺风信拆开：+'+fmt(r)+' ✦ 直接入册');
+    });
+  };
+  show('ovEnv');                                              // 先告知金额，玩家可取消（不看不扣次数、信还在）
+};
+$('envCancelBtn').onclick=()=>hide();                         // 取消：只关窗，信还飘着，可再点或等它飘走
+setInterval(()=>{                                              // 每6分钟飘来一封（正玩着、没在飘、今日没领满才出）
+  if(state==='digging'&&S.expand>=1&&!$('floatEnv').classList.contains('show'))spawnEnv();
+},ENV_ITV*1000);
+/* 主按钮 */
+$('collectBtn').onclick=()=>{if(state!=='digging')return;sfxCollect();settle(haul,page===1&&S.expand===0);};
+$('tapeAdBtn').onclick=()=>{playAd(()=>settle(haul*(1+0.2*S.adtape),false,{fromShatter:true}));};
+$('giveUpBtn').onclick=()=>{hide();settle(0,S.expand===0,{fromShatter:true});};
+$('copyAdBtn').onclick=()=>{playAd(()=>{
+  let mult=2+S.adcopy*0.5/3;
+  if(S.goldfoil&&goldfoilDay!==new Date().toDateString()){     // 金箔复写：每天第一印翻倍效果×2
+    mult*=2;goldfoilDay=new Date().toDateString();
+  }
+  const extra=Math.ceil(lastGain*(mult-1));
+  album+=extra;save();
+  $('sAlbum').textContent='✦ '+fmt(album);
+  $('copyAdBtn').style.display='none';
+  tone(700,.12,'sine',.05);updateHUD();
+});};
+$('nextBtn').onclick=()=>{hide();page++;save();newPage();};
+$('toCraftBtn').onclick=()=>{hide();craftReturnToNewPage=true;openCraft();};
+$('settleCraftBtn').onclick=()=>{hide();craftReturnToSettle=true;openCraft();};
+/* 离线装订面板 */
+function showOffline(){
+  const h=Math.floor(offlineSec/3600),m=Math.floor(offlineSec%3600/60);
+  $('offTime').textContent=(h?h+'小时':'')+m+'分钟';
+  $('offGain').textContent='✦ '+fmt(pendingOffline);
+  show('ovOffline');
+}
+function morningKick(){                                        // 早安剪报：离线≥30分钟回来，前3/6页×1.5
+  if(S.morning&&offlineSec>=1800){morningLeft=3*S.morning;
+    toast('📰 早安剪报：接下来 '+morningLeft+' 页收益 ×1.5');}
+}
+$('offOkBtn').onclick=()=>{album+=pendingOffline;LIFE.offGain+=pendingOffline;pendingOffline=0;morningKick();save();hide();updateHUD();};
+$('offAdBtn').onclick=()=>{playAd(()=>{album+=pendingOffline*2;LIFE.offGain+=pendingOffline*2;pendingOffline=0;save();hide();updateHUD();toast('离线收益已翻倍入册');morningKick();});};
+/* ===================== SEC9 启动（剪开封面 → 进入游戏 → 离线结算） ===================== */
+/* 做成"游戏"而非"网页"：禁掉长按弹出的搜索/复制菜单、文字选中、图片/文本拖拽 */
+['contextmenu','selectstart','dragstart'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));
+window.addEventListener('resize',()=>{layoutGrid();if(craftOpen){fitTree();hideBubble();}});
+(function(){
+  const cover=$('cover'),track=$('cutTrack'),scis=$('cutScis');
+  const topH=$('cvTop'),botH=$('cvBot');
+  const innerT=topH.querySelector('.cv-inner'),innerB=botH.querySelector('.cv-inner');
+  const SEG=40,JAG=2.5,GAP_BASE=4,GAP_R=0.42;
+  const jags=[];for(let i=0;i<=SEG;i++)jags.push((Math.random()*2-1)*JAG);
+  let prog=0,cutting=false,done=false,lastRip=0,lastFiber=0,raf=0,resetArmed=0;
+  let hasSave=load();
+  calcOffline();                                               // 离线装订：算待发收益
+  renderLogin();                                              // 恢复 TapTap 登录显示
+  renderDblBtn();if(dblActive())startDblTicker();             // 恢复双倍收益按钮/倒计时
+  applyFx();                                                  // 按存档恢复"晶体摆动/特效"开关
+  updateShelfBtn();                                           // 转生：侧栏藏书阁入口（转生过/有典藏卷才显示）
+  checkAch(true);                                             // 成就：载入时静默补齐已达成(老玩家不弹一堆toast，仍同步TapTap)
+  if(hasSave){
+    $('cvSave').innerHTML='上次剪到：<b>第 '+page+' 页</b> · 收藏册 <b>✦ '+fmt(album)+'</b>——剪开继续';
+    $('cvReset').style.display='';
+  }
+  const CH=()=>cover.clientHeight||600;
+  function gapAt(x){if(x>=prog)return 0;return GAP_BASE+Math.pow((prog-x)/100,0.72)*CH()*GAP_R;}
+  function jagAt(i,x){return x<prog?jags[i]:0;}
+  function updateClips(){
+    const h=CH(),mid=50;
+    const ptsT=['0% 0%','100% 0%'],ptsB=[];
+    for(let i=SEG;i>=0;i--){const x=i/SEG*100;
+      ptsT.push(x+'% '+(mid-(gapAt(x)-jagAt(i,x))/h*100)+'%');}
+    for(let i=0;i<=SEG;i++){const x=i/SEG*100;
+      ptsB.push(x+'% '+(mid+(gapAt(x)+jagAt(i,x))/h*100)+'%');}
+    ptsB.push('100% 100%','0% 100%');
+    topH.style.clipPath='polygon('+ptsT.join(',')+')';
+    botH.style.clipPath='polygon('+ptsB.join(',')+')';
+    const lift=gapAt(45)*0.92;
+    innerT.style.transform='translateY('+(-lift)+'px)';
+    innerB.style.transform='translateY('+lift+'px)';
+  }
+  function debris(clientX){
+    const r=cover.getBoundingClientRect();
+    for(let i=0;i<4;i++){
+      const b=document.createElement('div');b.className='cvbit';
+      const s=3+Math.random()*5;
+      b.style.cssText='left:'+(clientX-r.left+(Math.random()*16-8))+'px;top:'+(CH()/2+(Math.random()*10-5))+'px;'
+        +'width:'+s+'px;height:'+(s*.7)+'px;background:'+(Math.random()<.5?'#FBF6EA':'var(--kraft-deep)')+';'
+        +'--bx:'+(Math.random()*40-20)+'px;--by:'+(30+Math.random()*70)+'px;--br:'+(Math.random()*260-130)+'deg;'
+        +(Math.random()<.4?'clip-path:polygon(0 0,100% 30%,40% 100%);':'border-radius:1px;');
+      cover.appendChild(b);setTimeout(()=>b.remove(),820);
+    }
+  }
+  function fiber(xPct){
+    const f=document.createElement('div');f.className='cvfiber';
+    const g=Math.min(gapAt(xPct)||6,26);
+    f.style.cssText='left:'+(5+xPct*.9)+'%;top:calc(50% - '+(g*.5)+'px);height:'+(g+4)+'px;transform:rotate('+(Math.random()*24-12)+'deg)';
+    cover.appendChild(f);setTimeout(()=>f.remove(),1900);
+  }
+  function setProg(clientX){
+    const r=track.getBoundingClientRect();
+    const target=(clientX-r.left)/r.width*100;
+    const p=Math.max(prog,Math.min(target,prog+8));
+    if(p<=prog)return;
+    prog=p;
+    scis.style.left=prog+'%';
+    if(prog-lastRip>=8){rip(.05,.05);lastRip=prog;debris(clientX);}
+    if(prog-lastFiber>=7){fiber(prog-3);lastFiber=prog;}
+    if(!raf){raf=requestAnimationFrame(()=>{raf=0;updateClips();});}
+    if(prog>=96&&!done)finish();
+  }
+  function finish(){
+    done=true;cutting=false;cover.classList.remove('cutting');
+    rip(.32,.11);tone(560,.14,'sine',.05);
+    if(navigator.vibrate)navigator.vibrate([10,30,14]);
+    if(!hasSave){Object.keys(S).forEach(k=>S[k]=0);page=1;album=0;firstFlipDone=false;}
+    else firstFlipDone=true;
+    newPage();
+    if(bgmOn)startBGM();                                    // 进入游戏 → 起背景音乐
+    for(let i=0;i<3;i++)setTimeout(()=>debris(innerWidth*(0.3+Math.random()*0.4)),i*90);
+    cover.classList.add('finC');
+    track.style.display='none';
+    setTimeout(()=>{
+      cover.style.display='none';
+      if(pendingOffline>0)showOffline();                       // 离线装订收益
+    },900);
+  }
+  cover.addEventListener('pointerdown',e=>{
+    if(done||e.target.closest('#cvReset'))return;
+    AC();
+    cover.setPointerCapture(e.pointerId);
+    cover.classList.add('cutting');
+    cutting=true;
+    setProg(e.clientX);
+  });
+  cover.addEventListener('pointermove',e=>{if(cutting&&!done)setProg(e.clientX);});
+  const stop=()=>{cutting=false;if(!done)cover.classList.remove('cutting');};
+  cover.addEventListener('pointerup',stop);
+  cover.addEventListener('pointercancel',stop);
+  window.addEventListener('resize',()=>{if(!done&&cover.style.display!=='none')updateClips();});
+  $('cvReset').onclick=()=>{
+    if(Date.now()<resetArmed){
+      wipe();hasSave=false;
+      Object.keys(S).forEach(k=>S[k]=0);page=1;album=0;pendingOffline=0;
+      $('cvSave').textContent='已清空——剪开，从第一页开始';
+      $('cvReset').style.display='none';
+      return;
+    }
+    resetArmed=Date.now()+2500;
+    $('cvReset').textContent='再点一次确认清空！';
+    setTimeout(()=>{$('cvReset').textContent='↺ 重新开始';},2600);
+  };
+  scis.style.left='0%';
+  updateClips();
+})();
+})();
+</script>
+
+<style>
+  #dblBtn,#copyAdBtn,#tapeAdBtn,.adnote,#boardBtn{display: none !important;}
+</style>
+</body>
+</html>
